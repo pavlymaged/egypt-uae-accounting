@@ -5,7 +5,7 @@ import {
   LayoutDashboard, FolderKanban, Users, Tag, DollarSign, Percent,
   CreditCard, HardHat, ShoppingCart, FileCheck, Wallet, ArrowRightLeft,
   BarChart3, FileSpreadsheet, Building2, Settings, LogOut, Menu, X,
-  ChevronDown, ChevronRight, Banknote, UserCog, ClipboardCheck, type LucideIcon,
+  ChevronDown, ChevronRight, UserCog, ClipboardCheck, type LucideIcon,
 } from 'lucide-react';
 import DashboardHome from '../components/dashboard/DashboardHome';
 import ProjectsPage from '../components/projects/ProjectsPage';
@@ -14,7 +14,6 @@ import ServiceTypesPage from '../components/data-validation/ServiceTypesPage';
 import RecordIncomePage from '../components/income/RecordIncomePage';
 import ManagementFeePage from '../components/income/ManagementFeePage';
 import GeneralExpensesPage from '../components/expenses/GeneralExpensesPage';
-import EmployeeAdvancePage from '../components/expenses/EmployeeAdvancePage';
 import SiteExpensesPage from '../components/expenses/SiteExpensesPage';
 import VendorsPage from '../components/vendors/VendorsPage';
 import VendorQuotationsPage from '../components/vendors/VendorQuotationsPage';
@@ -37,7 +36,6 @@ type PageType =
   | 'record-income'
   | 'management-fee'
   | 'general-expenses'
-  | 'employee-advance'
   | 'site-expenses'
   | 'vendors'
   | 'vendor-quotations'
@@ -87,7 +85,6 @@ const navigationGroups: NavGroup[] = [
     label: 'Expenses',
     items: [
       { id: 'general-expenses', label: 'General Expenses', icon: CreditCard },
-      { id: 'employee-advance', label: 'Employee Advance', icon: Banknote },
       { id: 'site-expenses', label: 'Site Expenses', icon: HardHat },
     ],
   },
@@ -100,9 +97,9 @@ const navigationGroups: NavGroup[] = [
     ],
   },
   {
-    label: 'Site Engineers',
+    label: 'Employees',
     items: [
-      { id: 'site-engineers', label: 'Manage Engineers', icon: UserCog },
+      { id: 'site-engineers', label: 'Manage Employees', icon: UserCog },
       { id: 'engineer-expenses', label: 'Expense Review', icon: ClipboardCheck },
     ],
   },
@@ -129,10 +126,6 @@ const navigationGroups: NavGroup[] = [
   },
 ];
 
-export interface NavigationContext {
-  prefillEngineer?: { id: string; name: string; email: string; phone: string };
-}
-
 export default function Dashboard() {
   const { signOut } = useAuth();
   const { currentOrganization, organizations, switchOrganization } = useOrganization();
@@ -141,12 +134,6 @@ export default function Dashboard() {
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [pendingEngineerCount, setPendingEngineerCount] = useState(0);
-  const [navContext, setNavContext] = useState<NavigationContext>({});
-
-  const navigateTo = (page: PageType, context?: NavigationContext) => {
-    setNavContext(context || {});
-    setCurrentPage(page);
-  };
 
   useEffect(() => {
     if (currentOrganization) fetchPendingEngineerExpenses();
@@ -177,7 +164,6 @@ export default function Dashboard() {
       case 'record-income': return <RecordIncomePage />;
       case 'management-fee': return <ManagementFeePage />;
       case 'general-expenses': return <GeneralExpensesPage />;
-      case 'employee-advance': return <EmployeeAdvancePage prefillEngineer={navContext.prefillEngineer} onClearPrefill={() => setNavContext({})} />;
       case 'site-expenses': return <SiteExpensesPage />;
       case 'vendors': return <VendorsPage />;
       case 'vendor-quotations': return <VendorQuotationsPage />;
@@ -187,7 +173,7 @@ export default function Dashboard() {
       case 'report-cash-balance': return <CashBalanceReport />;
       case 'report-site-sheet': return <SiteSheetReport />;
       case 'report-client-sheet': return <ClientSheetReport />;
-      case 'site-engineers': return <SiteEngineersPage onNavigateToAdvance={(engineer) => navigateTo('employee-advance', { prefillEngineer: engineer })} />;
+      case 'site-engineers': return <SiteEngineersPage />;
       case 'engineer-expenses': return <EngineerExpenseReviewPage />;
       case 'settings': return <SettingsPage />;
       default: return <DashboardHome />;

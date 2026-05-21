@@ -90,6 +90,7 @@ export default function SiteExpensesPage() {
         .select('*, project:projects(project_code, project_name), vendor:vendors(name)')
         .eq('organization_id', currentOrganization.id)
         .eq('expense_type', 'site')
+        .eq('source', 'site_expenses')
         .order('expense_date', { ascending: false });
       if (error) throw error;
       setExpenses(data || []);
@@ -211,6 +212,7 @@ export default function SiteExpensesPage() {
           ...payload,
           expense_number: num,
           expense_type: 'site',
+          source: 'site_expenses',
           status: 'pending',
           organization_id: currentOrganization.id,
           created_by: user.id,

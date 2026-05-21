@@ -2,19 +2,22 @@ import { useEffect, useState } from 'react';
 import { useOrganization } from '../../contexts/OrganizationContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { Plus, Search, X, HardHat, Phone, Mail, Send, History, ChevronDown, ChevronUp, KeyRound, Loader2, Pencil, Trash2, AlertTriangle, Banknote, Link2, UserPlus } from 'lucide-react';
+import { Plus, Search, X, HardHat, Phone, Mail, Send, History, ChevronDown, ChevronUp, KeyRound, Loader2, Pencil, Trash2, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface SiteEngineer {
   id: string;
   name: string;
   email: string;
   phone: string;
+  title: string;
   user_id: string | null;
   project_id: string | null;
   is_active: boolean;
   created_at: string;
   project?: { project_code: string; project_name: string } | null;
 }
+
+const EMPLOYEE_TITLES = ['Accountant', 'Site Engineer', 'Senior Execution Engineer', 'Procurement Employee'] as const;
 
 interface EngineerAdvance {
   id: string;
@@ -31,17 +34,7 @@ interface Project {
   project_name: string;
 }
 
-interface ExistingEmployeeAdvance {
-  id: string;
-  advance_number: string;
-  employee_name: string;
-}
-
-interface Props {
-  onNavigateToAdvance?: (engineer: { id: string; name: string; email: string; phone: string }) => void;
-}
-
-export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
+export default function SiteEngineersPage() {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const [engineers, setEngineers] = useState<SiteEngineer[]>([]);
@@ -60,19 +53,16 @@ export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
 
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', project_id: '', linkMode: 'create' as 'create' | 'existing', existingAdvanceId: '' });
-  const [editFormData, setEditFormData] = useState({ name: '', email: '', phone: '', project_id: '', is_active: true });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', project_id: '', title: '' });
+  const [editFormData, setEditFormData] = useState({ name: '', email: '', phone: '', project_id: '', title: '', is_active: true });
   const [advanceForm, setAdvanceForm] = useState({ amount: 0, payment_source: 'cash', notes: '' });
   const [loginForm, setLoginForm] = useState({ password: '' });
-  const [existingEmployees, setExistingEmployees] = useState<ExistingEmployeeAdvance[]>([]);
-  const [employeeSearchQuery, setEmployeeSearchQuery] = useState('');
   const [toast, setToast] = useState<{ message: string; kind: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     if (currentOrganization) {
       fetchEngineers();
       fetchProjects();
-      fetchExistingEmployees();
     }
   }, [currentOrganization]);
 
@@ -130,17 +120,6 @@ export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
     setProjects(data || []);
   };
 
-  const fetchExistingEmployees = async () => {
-    if (!currentOrganization) return;
-    const { data } = await supabase
-      .from('employee_advances')
-      .select('id, advance_number, employee_name')
-      .eq('organization_id', currentOrganization.id)
-      .is('linked_engineer_id', null)
-      .order('employee_name');
-    setExistingEmployees(data || []);
-  };
-
   const fetchAdvanceHistory = async (engineerId: string) => {
     const { data } = await supabase
       .from('engineer_advances')
@@ -156,52 +135,23 @@ export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
     setSubmitting(true);
     setFeedback(null);
     try {
-      const { data: inserted, error } = await supabase.from('site_engineers').insert([{
+      const { error } = await supabase.from('site_engineers').insert([{
         organization_id: currentOrganization.id,
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
+        title: formData.title,
         project_id: formData.project_id || null,
         created_by: user.id,
-      }]).select('id').single();
+      }]);
       if (error) throw error;
 
-      if (formData.linkMode === 'existing' && formData.existingAdvanceId) {
-        await supabase.from('employee_advances')
-          .update({ linked_engineer_id: inserted.id })
-          .eq('id', formData.existingAdvanceId);
-      } else {
-        const { data: lastAdv } = await supabase
-          .from('employee_advances')
-          .select('advance_number')
-          .eq('organization_id', currentOrganization.id)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        const nextNum = lastAdv && lastAdv.length > 0
-          ? `ADV-${String((parseInt(lastAdv[0].advance_number.match(/\d+$/)?.[0] || '0') + 1)).padStart(4, '0')}`
-          : 'ADV-0001';
-
-        await supabase.from('employee_advances').insert([{
-          organization_id: currentOrganization.id,
-          advance_number: nextNum,
-          advance_date: new Date().toISOString().split('T')[0],
-          employee_name: formData.name,
-          amount: 0,
-          remaining_balance: 0,
-          source_account: 'cash',
-          notes: `Auto-created for engineer: ${formData.name}`,
-          created_by: user.id,
-          linked_engineer_id: inserted.id,
-        }]);
-      }
-
       await fetchEngineers();
-      await fetchExistingEmployees();
       setShowModal(false);
-      setFormData({ name: '', email: '', phone: '', project_id: '', linkMode: 'create', existingAdvanceId: '' });
-      setToast({ kind: 'success', message: `Engineer "${formData.name}" added and linked to Employee Advance.` });
+      setFormData({ name: '', email: '', phone: '', project_id: '', title: '' });
+      setToast({ kind: 'success', message: `Employee "${formData.name}" added successfully.` });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Failed to create engineer.';
+      const msg = error instanceof Error ? error.message : 'Failed to create employee.';
       setFeedback({ kind: 'error', message: msg });
     } finally {
       setSubmitting(false);
@@ -219,6 +169,7 @@ export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
           name: editFormData.name,
           email: editFormData.email,
           phone: editFormData.phone,
+          title: editFormData.title,
           project_id: editFormData.project_id || null,
           is_active: editFormData.is_active,
         })
@@ -331,6 +282,7 @@ export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
       name: engineer.name,
       email: engineer.email,
       phone: engineer.phone || '',
+      title: engineer.title || '',
       project_id: engineer.project_id || '',
       is_active: engineer.is_active,
     });
@@ -367,11 +319,11 @@ export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Site Engineers</h1>
-          <p className="text-slate-600">Manage engineers and their advance balances</p>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Manage Employees</h1>
+          <p className="text-slate-600">Manage employees and their advance balances</p>
         </div>
         <button onClick={() => { setShowModal(true); setFeedback(null); }} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">
-          <Plus className="w-5 h-5" />Add Engineer
+          <Plus className="w-5 h-5" />Add Employee
         </button>
       </div>
 
@@ -398,7 +350,8 @@ export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
                       {engineer.name}
                       {!engineer.is_active && <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded font-medium">Inactive</span>}
                     </div>
-                    <div className="text-xs text-slate-500 flex items-center gap-3">
+                    <div className="text-xs text-slate-500 flex items-center gap-3 flex-wrap">
+                      {engineer.title && <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[10px] font-medium">{engineer.title}</span>}
                       <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{engineer.email}</span>
                       {engineer.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{engineer.phone}</span>}
                     </div>
@@ -430,19 +383,10 @@ export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
                   <button
                     onClick={() => { setSelectedEngineer(engineer); setShowAdvanceModal(true); setFeedback(null); }}
                     className="flex items-center gap-1.5 text-xs px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
-                    title="Send Engineer Advance"
+                    title="Send Advance"
                   >
                     <Send className="w-3.5 h-3.5" />Advance
                   </button>
-                  {onNavigateToAdvance && (
-                    <button
-                      onClick={() => onNavigateToAdvance({ id: engineer.id, name: engineer.name, email: engineer.email, phone: engineer.phone })}
-                      className="flex items-center gap-1.5 text-xs px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition"
-                      title="Create Employee Advance"
-                    >
-                      <Banknote className="w-3.5 h-3.5" />Emp. Advance
-                    </button>
-                  )}
                   <button
                     onClick={() => openEditModal(engineer)}
                     className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
@@ -493,12 +437,12 @@ export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
         </div>
       </div>
 
-      {/* Add Engineer Modal */}
+      {/* Add Employee Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full">
-            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-slate-900">Add Site Engineer</h2>
+          <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white rounded-t-xl">
+              <h2 className="text-xl font-bold text-slate-900">Add Employee</h2>
               <button onClick={() => { setShowModal(false); setFeedback(null); }} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleSubmitEngineer} className="p-6 space-y-4">
@@ -508,6 +452,13 @@ export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Name *</label>
                 <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Title *</label>
+                <select value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                  <option value="">Select title...</option>
+                  {EMPLOYEE_TITLES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Email *</label>
@@ -524,72 +475,21 @@ export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
                   {projects.map(p => <option key={p.id} value={p.id}>{p.project_code} - {p.project_name}</option>)}
                 </select>
               </div>
-
-              <div className="border-t border-slate-200 pt-4">
-                <label className="block text-sm font-medium text-slate-700 mb-2">Employee Advance Link</label>
-                <div className="flex gap-2 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, linkMode: 'create', existingAdvanceId: '' })}
-                    className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${formData.linkMode === 'create' ? 'bg-blue-50 border-blue-300 text-blue-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                  >
-                    <UserPlus className="w-3.5 h-3.5" />Create New
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, linkMode: 'existing' })}
-                    className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${formData.linkMode === 'existing' ? 'bg-blue-50 border-blue-300 text-blue-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                  >
-                    <Link2 className="w-3.5 h-3.5" />Link Existing
-                  </button>
-                </div>
-                {formData.linkMode === 'create' && (
-                  <p className="text-xs text-slate-500">A new employee advance record will be automatically created from the engineer's details.</p>
-                )}
-                {formData.linkMode === 'existing' && (
-                  <div>
-                    <input
-                      type="text"
-                      placeholder="Search employees..."
-                      value={employeeSearchQuery}
-                      onChange={(e) => setEmployeeSearchQuery(e.target.value)}
-                      className="w-full px-3 py-2 mb-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <select
-                      value={formData.existingAdvanceId}
-                      onChange={(e) => setFormData({ ...formData, existingAdvanceId: e.target.value })}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select an employee...</option>
-                      {existingEmployees
-                        .filter(emp => emp.employee_name.toLowerCase().includes(employeeSearchQuery.toLowerCase()))
-                        .map(emp => (
-                          <option key={emp.id} value={emp.id}>{emp.employee_name} ({emp.advance_number})</option>
-                        ))
-                      }
-                    </select>
-                    {existingEmployees.length === 0 && (
-                      <p className="text-xs text-amber-600 mt-1">No unlinked employee advance records available.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => { setShowModal(false); setFeedback(null); }} className="flex-1 px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition">Cancel</button>
-                <button type="submit" disabled={submitting} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-lg transition">{submitting ? 'Saving...' : 'Add Engineer'}</button>
+                <button type="submit" disabled={submitting} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-lg transition">{submitting ? 'Saving...' : 'Add Employee'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Edit Engineer Modal */}
+      {/* Edit Employee Modal */}
       {showEditModal && selectedEngineer && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-lg w-full">
             <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-slate-900">Edit Engineer</h2>
+              <h2 className="text-xl font-bold text-slate-900">Edit Employee</h2>
               <button onClick={() => { setShowEditModal(false); setFeedback(null); setSelectedEngineer(null); }} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleEditEngineer} className="p-6 space-y-4">
@@ -599,6 +499,13 @@ export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Name *</label>
                 <input type="text" value={editFormData.name} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Title *</label>
+                <select value={editFormData.title} onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                  <option value="">Select title...</option>
+                  {EMPLOYEE_TITLES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Email *</label>
@@ -755,7 +662,7 @@ export default function SiteEngineersPage({ onNavigateToAdvance }: Props) {
       {toast && (
         <div className={`fixed bottom-6 right-6 z-[60] px-5 py-3 rounded-xl shadow-lg border transition-all animate-[fadeIn_0.2s_ease-out] ${toast.kind === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
           <div className="flex items-center gap-2">
-            {toast.kind === 'success' ? <Link2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+            {toast.kind === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
             <span className="text-sm font-medium">{toast.message}</span>
           </div>
         </div>

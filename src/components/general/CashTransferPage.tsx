@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useOrganization } from '../../contexts/OrganizationContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { Plus, Search, Edit, Trash2, X, ArrowRightLeft, DollarSign } from 'lucide-react';
+import { Plus, Search, CreditCard as Edit, Trash2, X, ArrowRightLeft, DollarSign } from 'lucide-react';
 
 interface CashTransfer {
   id: string;
@@ -15,10 +15,17 @@ interface CashTransfer {
   notes: string | null;
 }
 
+interface ActiveEmployee {
+  id: string;
+  name: string;
+  balance: number;
+}
+
 export default function CashTransferPage() {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const [transfers, setTransfers] = useState<CashTransfer[]>([]);
+  const [employees, setEmployees] = useState<ActiveEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -34,7 +41,10 @@ export default function CashTransferPage() {
   });
 
   useEffect(() => {
-    if (currentOrganization) fetchTransfers();
+    if (currentOrganization) {
+      fetchTransfers();
+      fetchActiveEmployees();
+    }
   }, [currentOrganization]);
 
   const fetchTransfers = async () => {
@@ -44,6 +54,39 @@ export default function CashTransferPage() {
       if (error) throw error;
       setTransfers(data || []);
     } catch (error) { console.error('Error:', error); } finally { setLoading(false); }
+  };
+
+  const fetchActiveEmployees = async () => {
+    if (!currentOrganization) return;
+    const { data: engineersList } = await supabase
+      .from('site_engineers')
+      .select('id, name')
+      .eq('organization_id', currentOrganization.id)
+      .eq('is_active', true)
+      .order('name');
+
+    if (!engineersList || engineersList.length === 0) {
+      setEmployees([]);
+      return;
+    }
+
+    const ids = engineersList.map(e => e.id);
+    const { data: advances } = await supabase
+      .from('engineer_advances')
+      .select('engineer_id, amount')
+      .in('engineer_id', ids);
+    const { data: expenses } = await supabase
+      .from('engineer_expenses')
+      .select('engineer_id, amount')
+      .in('engineer_id', ids)
+      .eq('status', 'Approved');
+
+    const balMap: Record<string, number> = {};
+    ids.forEach(id => { balMap[id] = 0; });
+    (advances || []).forEach(a => { balMap[a.engineer_id] = (balMap[a.engineer_id] || 0) + Number(a.amount); });
+    (expenses || []).forEach(e => { balMap[e.engineer_id] = (balMap[e.engineer_id] || 0) - Number(e.amount); });
+
+    setEmployees(engineersList.map(eng => ({ id: eng.id, name: eng.name, balance: balMap[eng.id] || 0 })));
   };
 
   const generateNumber = async () => {
@@ -96,6 +139,13 @@ export default function CashTransferPage() {
   const handleCloseModal = () => {
     setShowModal(false); setEditing(null);
     setFormData({ transfer_date: new Date().toISOString().split('T')[0], from_account: '', to_account: '', amount: 0, reference: '', notes: '' });
+  };
+
+  const getAccountLabel = (value: string) => {
+    if (value === 'cash') return 'Cash';
+    if (value === 'bank') return 'Bank';
+    const emp = employees.find(e => `employee:${e.id}` === value);
+    return emp ? emp.name : value;
   };
 
   const filtered = transfers.filter(t =>
@@ -157,8 +207,8 @@ export default function CashTransferPage() {
                 <tr key={t.id} className="hover:bg-slate-50">
                   <td className="px-6 py-4 text-sm font-medium text-slate-900">{t.transfer_number}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{new Date(t.transfer_date).toLocaleDateString()}</td>
-                  <td className="px-6 py-4 text-sm text-slate-900">{t.from_account}</td>
-                  <td className="px-6 py-4 text-sm text-slate-900">{t.to_account}</td>
+                  <td className="px-6 py-4 text-sm text-slate-900">{getAccountLabel(t.from_account)}</td>
+                  <td className="px-6 py-4 text-sm text-slate-900">{getAccountLabel(t.to_account)}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{t.reference || '-'}</td>
                   <td className="px-6 py-4 text-right text-sm font-medium text-slate-900">{formatCurrency(t.amount)}</td>
                   <td className="px-6 py-4 text-right">
@@ -187,11 +237,37 @@ export default function CashTransferPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">From Account *</label>
-                  <input type="text" value={formData.from_account} onChange={(e) => setFormData({ ...formData, from_account: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Cash, Bank Account" required />
+                  <select value={formData.from_account} onChange={(e) => setFormData({ ...formData, from_account: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <option value="">Select account...</option>
+                    <option value="cash">Cash</option>
+                    <option value="bank">Bank</option>
+                    {employees.length > 0 && (
+                      <optgroup label="Employees">
+                        {employees.map(emp => (
+                          <option key={emp.id} value={`employee:${emp.id}`}>
+                            {emp.name} — Balance: {formatCurrency(emp.balance)}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">To Account *</label>
-                  <input type="text" value={formData.to_account} onChange={(e) => setFormData({ ...formData, to_account: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Cash, Bank Account" required />
+                  <select value={formData.to_account} onChange={(e) => setFormData({ ...formData, to_account: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <option value="">Select account...</option>
+                    <option value="cash">Cash</option>
+                    <option value="bank">Bank</option>
+                    {employees.length > 0 && (
+                      <optgroup label="Employees">
+                        {employees.map(emp => (
+                          <option key={emp.id} value={`employee:${emp.id}`}>
+                            {emp.name} — Balance: {formatCurrency(emp.balance)}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
                 </div>
               </div>
               <div>
