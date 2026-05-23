@@ -17,7 +17,7 @@ interface SiteEngineer {
   project?: { project_code: string; project_name: string } | null;
 }
 
-const EMPLOYEE_TITLES = ['Accountant', 'Site Engineer', 'Senior Execution Engineer', 'Procurement Employee'] as const;
+const EMPLOYEE_TITLES = ['Accountant', 'Site Engineer', 'Senior Execution Engineer', 'Procurement Employee', 'Other'] as const;
 
 interface EngineerAdvance {
   id: string;
