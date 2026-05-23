@@ -381,13 +381,6 @@ export default function SiteEngineersPage() {
                     <span className="text-[10px] px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium">Login Active</span>
                   )}
                   <button
-                    onClick={() => { setSelectedEngineer(engineer); setShowAdvanceModal(true); setFeedback(null); }}
-                    className="flex items-center gap-1.5 text-xs px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
-                    title="Send Advance"
-                  >
-                    <Send className="w-3.5 h-3.5" />Advance
-                  </button>
-                  <button
                     onClick={() => openEditModal(engineer)}
                     className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
                     title="Edit Engineer"
