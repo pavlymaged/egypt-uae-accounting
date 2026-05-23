@@ -151,11 +151,16 @@ export default function EngineerExpenseReviewPage() {
         if (updateError) throw updateError;
       }
 
+      const { data: { session }, error: sessionError } = await supabase.auth.refreshSession();
+      if (sessionError || !session) {
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/approve-engineer-expense`;
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
