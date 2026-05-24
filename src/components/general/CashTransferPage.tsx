@@ -108,12 +108,69 @@ export default function CashTransferPage() {
     setFeedback(null);
     try {
       if (editing) {
+        const oldToEmployeeId = editing.to_account.startsWith('employee:') ? editing.to_account.replace('employee:', '') : null;
+        const oldFromEmployeeId = editing.from_account.startsWith('employee:') ? editing.from_account.replace('employee:', '') : null;
+        const newToEmployeeId = formData.to_account.startsWith('employee:') ? formData.to_account.replace('employee:', '') : null;
+        const newFromEmployeeId = formData.from_account.startsWith('employee:') ? formData.from_account.replace('employee:', '') : null;
+
         const { error } = await supabase.from('cash_transfers').update({
           transfer_date: formData.transfer_date, from_account: formData.from_account,
           to_account: formData.to_account, amount: formData.amount,
           reference: formData.reference, notes: formData.notes,
         }).eq('id', editing.id);
         if (error) throw error;
+
+        // Reverse old "to" employee advance if employee changed or amount changed
+        if (oldToEmployeeId && (oldToEmployeeId !== newToEmployeeId || editing.amount !== formData.amount)) {
+          const { error: revErr } = await supabase.from('engineer_advances').insert([{
+            organization_id: currentOrganization.id,
+            engineer_id: oldToEmployeeId,
+            amount: -editing.amount,
+            payment_source: editing.from_account === 'bank' ? 'bank' : 'cash',
+            notes: `Reversed: edit transfer ${editing.transfer_number}`,
+            created_by: user.id,
+          }]);
+          if (revErr) throw revErr;
+        }
+
+        // Reverse old "from" employee advance if employee changed or amount changed
+        if (oldFromEmployeeId && (oldFromEmployeeId !== newFromEmployeeId || editing.amount !== formData.amount)) {
+          const { error: revErr } = await supabase.from('engineer_advances').insert([{
+            organization_id: currentOrganization.id,
+            engineer_id: oldFromEmployeeId,
+            amount: editing.amount,
+            payment_source: editing.to_account === 'bank' ? 'bank' : 'cash',
+            notes: `Reversed: edit transfer ${editing.transfer_number}`,
+            created_by: user.id,
+          }]);
+          if (revErr) throw revErr;
+        }
+
+        // Apply new "to" employee advance
+        if (newToEmployeeId && (oldToEmployeeId !== newToEmployeeId || editing.amount !== formData.amount)) {
+          const { error: advErr } = await supabase.from('engineer_advances').insert([{
+            organization_id: currentOrganization.id,
+            engineer_id: newToEmployeeId,
+            amount: formData.amount,
+            payment_source: formData.from_account === 'bank' ? 'bank' : 'cash',
+            notes: `Cash transfer ${editing.transfer_number} (edited)${formData.notes ? ': ' + formData.notes : ''}`,
+            created_by: user.id,
+          }]);
+          if (advErr) throw advErr;
+        }
+
+        // Apply new "from" employee advance
+        if (newFromEmployeeId && (oldFromEmployeeId !== newFromEmployeeId || editing.amount !== formData.amount)) {
+          const { error: advErr } = await supabase.from('engineer_advances').insert([{
+            organization_id: currentOrganization.id,
+            engineer_id: newFromEmployeeId,
+            amount: -formData.amount,
+            payment_source: formData.to_account === 'bank' ? 'bank' : 'cash',
+            notes: `Cash transfer return ${editing.transfer_number} (edited)${formData.notes ? ': ' + formData.notes : ''}`,
+            created_by: user.id,
+          }]);
+          if (advErr) throw advErr;
+        }
       } else {
         const num = await generateNumber();
         const { error } = await supabase.from('cash_transfers').insert([{
