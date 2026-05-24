@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useOrganization } from '../../contexts/OrganizationContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { Plus, Search, CreditCard as Edit, Trash2, X, ArrowRightLeft, DollarSign } from 'lucide-react';
+import { Plus, Search, CreditCard as Edit, Trash2, X, ArrowRightLeft, DollarSign, CheckCircle, AlertTriangle } from 'lucide-react';
 
 interface CashTransfer {
   id: string;
@@ -30,6 +30,9 @@ export default function CashTransferPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<CashTransfer | null>(null);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
 
   const [formData, setFormData] = useState({
     transfer_date: new Date().toISOString().split('T')[0],
@@ -101,6 +104,8 @@ export default function CashTransferPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentOrganization || !user) return;
+    setSubmitting(true);
+    setFeedback(null);
     try {
       if (editing) {
         const { error } = await supabase.from('cash_transfers').update({
@@ -118,10 +123,45 @@ export default function CashTransferPage() {
           notes: formData.notes, organization_id: currentOrganization.id, created_by: user.id,
         }]);
         if (error) throw error;
+
+        // Sync with employee advance balance
+        const toEmployeeId = formData.to_account.startsWith('employee:') ? formData.to_account.replace('employee:', '') : null;
+        const fromEmployeeId = formData.from_account.startsWith('employee:') ? formData.from_account.replace('employee:', '') : null;
+
+        if (toEmployeeId) {
+          const { error: advError } = await supabase.from('engineer_advances').insert([{
+            organization_id: currentOrganization.id,
+            engineer_id: toEmployeeId,
+            amount: formData.amount,
+            payment_source: formData.from_account === 'bank' ? 'bank' : 'cash',
+            notes: `Cash transfer ${num}${formData.notes ? ': ' + formData.notes : ''}`,
+            created_by: user.id,
+          }]);
+          if (advError) throw advError;
+        }
+
+        if (fromEmployeeId) {
+          const { error: advError } = await supabase.from('engineer_advances').insert([{
+            organization_id: currentOrganization.id,
+            engineer_id: fromEmployeeId,
+            amount: -formData.amount,
+            payment_source: formData.to_account === 'bank' ? 'bank' : 'cash',
+            notes: `Cash transfer return ${num}${formData.notes ? ': ' + formData.notes : ''}`,
+            created_by: user.id,
+          }]);
+          if (advError) throw advError;
+        }
       }
       await fetchTransfers();
+      await fetchActiveEmployees();
+      setFeedback({ kind: 'success', message: 'Transfer recorded and balances updated.' });
       handleCloseModal();
-    } catch (error) { console.error('Error:', error); alert('Failed to save transfer'); }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to save transfer';
+      setFeedback({ kind: 'error', message: msg });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleEdit = (t: CashTransfer) => {
@@ -179,6 +219,14 @@ export default function CashTransferPage() {
           <div className="text-2xl font-bold text-slate-900">{transfers.length}</div>
         </div>
       </div>
+
+      {feedback && (
+        <div className={`mb-6 flex items-center gap-3 px-4 py-3 rounded-lg border ${feedback.kind === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+          {feedback.kind === 'success' ? <CheckCircle className="w-5 h-5 text-green-600 shrink-0" /> : <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />}
+          <span className="text-sm font-medium">{feedback.message}</span>
+          <button onClick={() => setFeedback(null)} className="ml-auto p-1 hover:bg-black/5 rounded"><X className="w-4 h-4" /></button>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-slate-200 mb-6">
         <div className="p-4 border-b border-slate-200">
@@ -284,7 +332,7 @@ export default function CashTransferPage() {
               </div>
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={handleCloseModal} className="flex-1 px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition">Cancel</button>
-                <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">{editing ? 'Update' : 'Create Transfer'}</button>
+                <button type="submit" disabled={submitting} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-lg transition">{submitting ? 'Processing...' : (editing ? 'Update' : 'Create Transfer')}</button>
               </div>
             </form>
           </div>

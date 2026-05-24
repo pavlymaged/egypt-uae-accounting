@@ -363,10 +363,14 @@ export default function SiteEngineersPage() {
 
                 <div className="flex items-center gap-3">
                   <div className="text-right mr-2">
-                    <div className="text-xs uppercase tracking-wide text-slate-500">Balance</div>
-                    <div className={`text-lg font-bold ${(balances[engineer.id] || 0) >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                      {formatCurrency(balances[engineer.id] || 0)}
+                    <div className="text-xs uppercase tracking-wide text-slate-500">Money in Advance</div>
+                    <div className={`text-lg font-bold ${(balances[engineer.id] || 0) > 0 ? 'text-green-700' : (balances[engineer.id] || 0) < 0 ? 'text-red-700' : 'text-slate-700'}`}>
+                      {(balances[engineer.id] || 0) < 0 && <span className="text-red-500 mr-0.5">-</span>}
+                      {formatCurrency(Math.abs(balances[engineer.id] || 0))}
                     </div>
+                    {(balances[engineer.id] || 0) < 0 && (
+                      <div className="text-[10px] text-red-600 font-medium">Owes company</div>
+                    )}
                   </div>
                   {!engineer.user_id && (
                     <button
