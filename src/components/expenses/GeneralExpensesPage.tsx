@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useOrganization } from '../../contexts/OrganizationContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { CreditCard, Users, HardHat, ShoppingCart, TrendingDown, Download, Search, ChevronDown, ChevronRight } from 'lucide-react';
+import { CreditCard, HardHat, ShoppingCart, TrendingDown, Download, Search, ChevronDown, ChevronRight, Plus, X } from 'lucide-react';
 
 interface ExpenseRow {
   id: string;
@@ -21,40 +22,85 @@ interface SectionData {
   total: number;
 }
 
+interface Project { id: string; project_code: string; project_name: string; }
+interface Vendor { id: string; name: string; tax_registration_number: string | null; }
+interface ServiceType { id: string; name: string; }
+
 export default function GeneralExpensesPage() {
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
   const [sections, setSections] = useState<SectionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [showModal, setShowModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [dateRange, setDateRange] = useState({
     from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     to: new Date().toISOString().split('T')[0],
   });
 
+  const defaultForm = {
+    project_id: '',
+    expense_date: new Date().toISOString().split('T')[0],
+    description: '',
+    amount: 0,
+    payment_method: 'cash',
+    vendor_id: '',
+    category: 'material',
+    profession: '',
+    vendor_name_text: '',
+    trn_text: '',
+    tax_included: false,
+    notes: '',
+  };
+  const [formData, setFormData] = useState(defaultForm);
+
   useEffect(() => {
     if (currentOrganization) fetchAllExpenses();
   }, [currentOrganization, dateRange]);
+
+  useEffect(() => {
+    if (currentOrganization) {
+      fetchProjects();
+      fetchVendors();
+      fetchServiceTypes();
+    }
+  }, [currentOrganization]);
+
+  const fetchProjects = async () => {
+    if (!currentOrganization) return;
+    const { data } = await supabase.from('projects').select('id, project_code, project_name').eq('organization_id', currentOrganization.id).eq('project_status', 'active').order('project_code');
+    setProjects(data || []);
+  };
+
+  const fetchVendors = async () => {
+    if (!currentOrganization) return;
+    const { data } = await supabase.from('vendors').select('id, name, tax_registration_number').eq('organization_id', currentOrganization.id).eq('is_active', true).order('name');
+    setVendors(data || []);
+  };
+
+  const fetchServiceTypes = async () => {
+    if (!currentOrganization) return;
+    const { data } = await supabase.from('service_types').select('id, name').eq('organization_id', currentOrganization.id).eq('is_active', true).order('name');
+    setServiceTypes(data || []);
+  };
 
   const fetchAllExpenses = async () => {
     if (!currentOrganization) return;
     setLoading(true);
     try {
-      const [employeeExpenses, siteExpenses, vendorPayments, directExpenses] = await Promise.all([
-        fetchEmployeeExpenses(),
+      const [siteExpenses, vendorPayments, directExpenses] = await Promise.all([
         fetchSiteExpenses(),
         fetchVendorPayments(),
         fetchDirectGeneralExpenses(),
       ]);
 
       setSections([
-        {
-          label: 'Employee Expenses',
-          icon: Users,
-          iconColor: 'text-blue-600',
-          rows: employeeExpenses,
-          total: employeeExpenses.reduce((s, r) => s + r.amount, 0),
-        },
         {
           label: 'Site Expenses',
           icon: HardHat,
@@ -82,28 +128,6 @@ export default function GeneralExpensesPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchEmployeeExpenses = async (): Promise<ExpenseRow[]> => {
-    if (!currentOrganization) return [];
-    const { data } = await supabase
-      .from('engineer_expenses')
-      .select('id, expense_date, description, amount, category, project:projects(project_code), engineer:site_engineers(name)')
-      .eq('organization_id', currentOrganization.id)
-      .eq('status', 'Approved')
-      .gte('expense_date', dateRange.from)
-      .lte('expense_date', dateRange.to)
-      .order('expense_date', { ascending: false });
-
-    return (data || []).map((row: any) => ({
-      id: row.id,
-      date: row.expense_date,
-      description: row.description,
-      amount: Number(row.amount),
-      category: row.category || '-',
-      project_code: row.project?.project_code || null,
-      source_label: row.engineer?.name || 'Employee',
-    }));
   };
 
   const fetchSiteExpenses = async (): Promise<ExpenseRow[]> => {
@@ -209,6 +233,69 @@ export default function GeneralExpensesPage() {
     URL.revokeObjectURL(url);
   };
 
+  const generateNumber = async () => {
+    if (!currentOrganization) return 'GEXP-0001';
+    const { data } = await supabase.from('project_expenses').select('expense_number').eq('organization_id', currentOrganization.id).eq('expense_type', 'general').order('created_at', { ascending: false }).limit(1);
+    if (!data || data.length === 0) return 'GEXP-0001';
+    const match = data[0].expense_number.match(/\d+$/);
+    const next = match ? parseInt(match[0]) + 1 : 1;
+    return `GEXP-${String(next).padStart(4, '0')}`;
+  };
+
+  const handleVendorChange = (vendorId: string) => {
+    const vendor = vendors.find(v => v.id === vendorId);
+    setFormData({
+      ...formData,
+      vendor_id: vendorId,
+      vendor_name_text: vendor?.name || '',
+      trn_text: vendor?.tax_registration_number || '',
+    });
+  };
+
+  const handleExpenseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentOrganization || !user) return;
+    setSubmitting(true);
+    setFeedback(null);
+    try {
+      const num = await generateNumber();
+      const { error } = await supabase.from('project_expenses').insert([{
+        expense_number: num,
+        expense_type: 'general',
+        source: 'general_expenses',
+        status: 'pending',
+        organization_id: currentOrganization.id,
+        created_by: user.id,
+        project_id: formData.project_id || null,
+        expense_date: formData.expense_date,
+        description: formData.description,
+        amount: formData.amount,
+        payment_method: formData.payment_method,
+        vendor_id: formData.vendor_id || null,
+        category: formData.category,
+        profession: formData.profession,
+        vendor_name_text: formData.vendor_name_text,
+        trn_text: formData.trn_text,
+        tax_included: formData.tax_included,
+        notes: formData.notes,
+      }]);
+      if (error) throw error;
+      await fetchAllExpenses();
+      handleCloseModal();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save expense.';
+      setFeedback({ kind: 'error', message });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setFormData(defaultForm);
+    setFeedback(null);
+  };
+
   if (loading) return <div className="p-8 flex items-center justify-center"><div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>;
 
   return (
@@ -218,9 +305,14 @@ export default function GeneralExpensesPage() {
           <h1 className="text-3xl font-bold text-slate-900 mb-2">General Expenses</h1>
           <p className="text-slate-600">Aggregate view of all expense categories</p>
         </div>
-        <button onClick={exportToCSV} className="flex items-center gap-2 border border-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition">
-          <Download className="w-4 h-4" />Export
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={exportToCSV} className="flex items-center gap-2 border border-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition">
+            <Download className="w-4 h-4" />Export
+          </button>
+          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">
+            <Plus className="w-5 h-5" />Submit Expense
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
@@ -346,6 +438,101 @@ export default function GeneralExpensesPage() {
           <span className="text-xl font-bold text-white">{formatCurrency(grandTotal)}</span>
         </div>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white rounded-t-xl z-10">
+              <h2 className="text-2xl font-bold text-slate-900">Submit General Expense</h2>
+              <button onClick={handleCloseModal} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleExpenseSubmit} className="p-6 space-y-4">
+              {feedback && (
+                <div className={`px-3 py-2 rounded-lg text-sm border ${feedback.kind === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                  {feedback.message}
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Project</label>
+                <select value={formData.project_id} onChange={(e) => setFormData({ ...formData, project_id: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Select project (optional)</option>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.project_code} - {p.project_name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Date *</label>
+                  <input type="date" value={formData.expense_date} onChange={(e) => setFormData({ ...formData, expense_date: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Amount *</label>
+                  <input type="number" step="0.01" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Description *</label>
+                <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} required />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Category *</label>
+                  <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                    <option value="material">Material</option>
+                    <option value="labour">Labour</option>
+                    <option value="indirect">Indirect</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Profession</label>
+                  <select value={formData.profession} onChange={(e) => setFormData({ ...formData, profession: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Select profession</option>
+                    {serviceTypes.map(st => <option key={st.id} value={st.name}>{st.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Payment Method *</label>
+                <select value={formData.payment_method} onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
+                  <option value="cash">Cash</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="check">Check</option>
+                  <option value="card">Card</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Vendor</label>
+                <select value={formData.vendor_id} onChange={(e) => handleVendorChange(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">No vendor</option>
+                  {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Vendor Name</label>
+                  <input type="text" value={formData.vendor_name_text} onChange={(e) => setFormData({ ...formData, vendor_name_text: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">TRN</label>
+                  <input type="text" value={formData.trn_text} onChange={(e) => setFormData({ ...formData, trn_text: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono" />
+                </div>
+              </div>
+              <div className="flex items-center gap-3 py-1">
+                <input type="checkbox" id="gen_tax" checked={formData.tax_included} onChange={(e) => setFormData({ ...formData, tax_included: e.target.checked })} className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500" />
+                <label htmlFor="gen_tax" className="text-sm font-medium text-slate-700">Tax Included</label>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Notes</label>
+                <textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={handleCloseModal} className="flex-1 px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition">Cancel</button>
+                <button type="submit" disabled={submitting} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg transition">{submitting ? 'Saving...' : 'Submit Expense'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

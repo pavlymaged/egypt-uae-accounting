@@ -64,7 +64,7 @@ export default function SiteSheetReport() {
           generalExpenses: exp.general,
           siteExpenses: exp.site,
           vendorPayments: vp,
-          net: inc.income - exp.general - exp.site - vp,
+          net: inc.income - inc.mf - exp.general - exp.site - vp,
         };
       }));
     } catch (error) { console.error('Error:', error); } finally { setLoading(false); }
@@ -74,7 +74,7 @@ export default function SiteSheetReport() {
   const displayed = selectedProject ? sheets.filter(s => s.id === selectedProject) : sheets;
 
   const exportToCSV = () => {
-    const headers = ['Project Code', 'Project Name', 'Status', 'MF %', 'Income', 'MF Collected', 'General Exp', 'Site Exp', 'Vendor Payments', 'Net'];
+    const headers = ['Project Code', 'Project Name', 'Status', 'MF %', 'Income', 'MF Collected', 'General Exp', 'Site Exp', 'Vendor Payments', 'Project Balance'];
     const rows = displayed.map(s => [
       s.project_code, `"${s.project_name}"`, s.project_status, s.management_fee_percent,
       s.totalIncome.toFixed(2), s.totalMf.toFixed(2), s.generalExpenses.toFixed(2),
