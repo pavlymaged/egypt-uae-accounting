@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { Plus, Search, CreditCard as Edit, Trash2, X, DollarSign, Calendar, Paperclip } from 'lucide-react';
 import AttachmentsManager from '../attachments/AttachmentsManager';
+import VendorPaymentRecordModal, { PaymentRecord } from './VendorPaymentRecordModal';
 
 interface VendorPayment {
   id: string;
@@ -13,6 +14,8 @@ interface VendorPayment {
   quotation_id: string | null;
   payment_date: string;
   amount: number;
+  client_amount: number;
+  office_amount: number;
   payment_method: string;
   reference: string | null;
   notes: string | null;
@@ -23,8 +26,20 @@ interface VendorPayment {
 
 interface Vendor { id: string; name: string; }
 interface Project { id: string; project_code: string; project_name: string; }
-interface Quotation { id: string; quotation_number: string; total_amount: number; vendor_id: string; }
+interface Quotation { id: string; quotation_number: string; total_amount: number; vendor_id: string; project_id: string | null; }
+interface QuotationLine { total_amount_client: number; total_amount_office: number; }
 interface EmployeeAdvanceOption { id: string; advance_number: string; employee_name: string; remaining_balance: number; }
+
+interface QuotationSummary {
+  quotationId: string;
+  quotationNumber: string;
+  vendorName: string;
+  projectId: string | null;
+  clientTotal: number;
+  officeTotal: number;
+  clientPaid: number;
+  officePaid: number;
+}
 
 export default function VendorPaymentsPage() {
   const { currentOrganization } = useOrganization();
@@ -41,6 +56,11 @@ export default function VendorPaymentsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<VendorPayment | null>(null);
+  const [showRecordModal, setShowRecordModal] = useState(false);
+  const [quotationSummary, setQuotationSummary] = useState<QuotationSummary | null>(null);
+  const [selectQuotationModal, setSelectQuotationModal] = useState(false);
+  const [selectedVendorForRecord, setSelectedVendorForRecord] = useState('');
+  const [selectedQuotationForRecord, setSelectedQuotationForRecord] = useState('');
 
   const [formData, setFormData] = useState({
     vendor_id: '',
@@ -100,8 +120,78 @@ export default function VendorPaymentsPage() {
 
   const fetchQuotations = async () => {
     if (!currentOrganization) return;
-    const { data } = await supabase.from('vendor_quotations').select('id, quotation_number, total_amount, vendor_id').eq('organization_id', currentOrganization.id).eq('status', 'approved').order('quotation_number');
+    const { data } = await supabase.from('vendor_quotations').select('id, quotation_number, total_amount, vendor_id, project_id').eq('organization_id', currentOrganization.id).eq('status', 'approved').order('quotation_number');
     setQuotations(data || []);
+  };
+
+  const loadQuotationSummary = async (quotationId: string) => {
+    if (!currentOrganization) return;
+    const quotation = quotations.find(q => q.id === quotationId);
+    if (!quotation) return;
+
+    const vendor = vendors.find(v => v.id === quotation.vendor_id);
+
+    const { data: lines } = await supabase
+      .from('quotation_lines')
+      .select('total_amount_client, total_amount_office')
+      .eq('quotation_id', quotationId);
+
+    const clientTotal = (lines || []).reduce((s: number, l: QuotationLine) => s + Number(l.total_amount_client), 0);
+    const officeTotal = (lines || []).reduce((s: number, l: QuotationLine) => s + Number(l.total_amount_office), 0);
+
+    const { data: existingPayments } = await supabase
+      .from('vendor_project_payments')
+      .select('client_amount, office_amount')
+      .eq('quotation_id', quotationId)
+      .eq('organization_id', currentOrganization.id);
+
+    const clientPaid = (existingPayments || []).reduce((s: number, p: any) => s + Number(p.client_amount || 0), 0);
+    const officePaid = (existingPayments || []).reduce((s: number, p: any) => s + Number(p.office_amount || 0), 0);
+
+    setQuotationSummary({
+      quotationId,
+      quotationNumber: quotation.quotation_number,
+      vendorName: vendor?.name || 'Unknown Vendor',
+      projectId: quotation.project_id,
+      clientTotal,
+      officeTotal,
+      clientPaid,
+      officePaid,
+    });
+    setSelectQuotationModal(false);
+    setShowRecordModal(true);
+  };
+
+  const handleRecordPayment = async (paymentData: PaymentRecord) => {
+    if (!currentOrganization || !user || !quotationSummary) return;
+    try {
+      const num = await generateNumber();
+      const totalAmount = paymentData.clientAmount + paymentData.officeAmount;
+      const { error } = await supabase.from('vendor_project_payments').insert([{
+        payment_number: num,
+        organization_id: currentOrganization.id,
+        vendor_id: vendors.find(v => v.name === quotationSummary.vendorName)?.id || selectedVendorForRecord,
+        project_id: quotationSummary.projectId,
+        quotation_id: quotationSummary.quotationId,
+        payment_date: paymentData.date,
+        amount: totalAmount,
+        client_amount: paymentData.clientAmount,
+        office_amount: paymentData.officeAmount,
+        payment_method: paymentData.method,
+        reference: paymentData.reference || null,
+        notes: null,
+        created_by: user.id,
+      }]);
+      if (error) throw error;
+      setShowRecordModal(false);
+      setQuotationSummary(null);
+      setSelectedVendorForRecord('');
+      setSelectedQuotationForRecord('');
+      await fetchPayments();
+    } catch (error) {
+      console.error('Error recording payment:', error);
+      alert('Failed to record payment.');
+    }
   };
 
   const generateNumber = async () => {
@@ -222,7 +312,10 @@ export default function VendorPaymentsPage() {
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Vendor Payments</h1>
           <p className="text-slate-600">Record payments to vendors</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"><Plus className="w-5 h-5" />Record Payment</button>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setSelectQuotationModal(true)} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"><Plus className="w-5 h-5" />Record Payment</button>
+          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 border border-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition"><Plus className="w-5 h-5" />Quick Payment</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -291,7 +384,7 @@ export default function VendorPaymentsPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white">
-              <h2 className="text-2xl font-bold text-slate-900">{editing ? 'Edit Payment' : 'Record Payment'}</h2>
+              <h2 className="text-2xl font-bold text-slate-900">{editing ? 'Edit Payment' : 'Quick Payment'}</h2>
               <button onClick={handleCloseModal} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -377,6 +470,56 @@ export default function VendorPaymentsPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {selectQuotationModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full">
+            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900">Select Quotation for Payment</h2>
+              <button onClick={() => { setSelectQuotationModal(false); setSelectedVendorForRecord(''); setSelectedQuotationForRecord(''); }} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Vendor *</label>
+                <select value={selectedVendorForRecord} onChange={(e) => { setSelectedVendorForRecord(e.target.value); setSelectedQuotationForRecord(''); }} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Select vendor</option>
+                  {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Quotation *</label>
+                <select value={selectedQuotationForRecord} onChange={(e) => setSelectedQuotationForRecord(e.target.value)} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Select quotation</option>
+                  {quotations.filter(q => q.vendor_id === selectedVendorForRecord).map(q => (
+                    <option key={q.id} value={q.id}>{q.quotation_number} ({formatCurrency(q.total_amount)})</option>
+                  ))}
+                </select>
+              </div>
+              {selectedVendorForRecord && quotations.filter(q => q.vendor_id === selectedVendorForRecord).length === 0 && (
+                <p className="text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">No approved quotations for this vendor.</p>
+              )}
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => { setSelectQuotationModal(false); setSelectedVendorForRecord(''); setSelectedQuotationForRecord(''); }} className="flex-1 px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition">Cancel</button>
+                <button type="button" disabled={!selectedQuotationForRecord} onClick={() => loadQuotationSummary(selectedQuotationForRecord)} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition">Continue</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRecordModal && quotationSummary && (
+        <VendorPaymentRecordModal
+          vendorName={quotationSummary.vendorName}
+          quotationNumber={quotationSummary.quotationNumber}
+          clientTotalQuotation={quotationSummary.clientTotal}
+          officeTotalQuotation={quotationSummary.officeTotal}
+          clientPreviouslyPaid={quotationSummary.clientPaid}
+          officePreviouslyPaid={quotationSummary.officePaid}
+          currency={currentOrganization?.base_currency || 'USD'}
+          onSubmit={handleRecordPayment}
+          onCancel={() => { setShowRecordModal(false); setQuotationSummary(null); }}
+        />
       )}
     </div>
   );
