@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useOrganization } from '../../contexts/OrganizationContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { Plus, Search, Edit, Trash2, X, Mail, Phone, MapPin, User } from 'lucide-react';
+import { Plus, Search, CreditCard as Edit, Trash2, X, Mail, Phone, MapPin, User, KeyRound, ShieldCheck, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 
 interface Client {
   id: string;
@@ -14,6 +14,7 @@ interface Client {
   billing_address: string | null;
   is_active: boolean;
   project_count?: number;
+  portal_user?: { email: string; is_active: boolean } | null;
 }
 
 export default function ClientsPage() {
@@ -24,6 +25,14 @@ export default function ClientsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [showCredModal, setShowCredModal] = useState(false);
+  const [credClient, setCredClient] = useState<Client | null>(null);
+  const [credEmail, setCredEmail] = useState('');
+  const [credPassword, setCredPassword] = useState('');
+  const [credShowPassword, setCredShowPassword] = useState(false);
+  const [credSubmitting, setCredSubmitting] = useState(false);
+  const [credSuccess, setCredSuccess] = useState('');
+  const [credError, setCredError] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -57,7 +66,21 @@ export default function ClientsPage() {
         countMap[p.client_id] = (countMap[p.client_id] || 0) + 1;
       });
 
-      setClients((clientsData || []).map(c => ({ ...c, project_count: countMap[c.id] || 0 })));
+      const { data: portalUsers } = await supabase
+        .from('client_portal_users')
+        .select('customer_id, email, is_active')
+        .eq('organization_id', currentOrganization.id);
+
+      const portalMap: Record<string, { email: string; is_active: boolean }> = {};
+      portalUsers?.forEach(pu => {
+        portalMap[pu.customer_id] = { email: pu.email, is_active: pu.is_active };
+      });
+
+      setClients((clientsData || []).map(c => ({
+        ...c,
+        project_count: countMap[c.id] || 0,
+        portal_user: portalMap[c.id] || null,
+      })));
     } catch (error) {
       console.error('Error fetching clients:', error);
     } finally {
@@ -146,6 +169,62 @@ export default function ClientsPage() {
     setFormData({ name: '', contact_person: '', email: '', phone: '', billing_address: '' });
   };
 
+  const openCredModal = (client: Client) => {
+    setCredClient(client);
+    setCredEmail(client.portal_user?.email || client.email || '');
+    setCredPassword('');
+    setCredSuccess('');
+    setCredError('');
+    setCredShowPassword(false);
+    setShowCredModal(true);
+  };
+
+  const handleCredSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentOrganization || !user || !credClient) return;
+    if (!credEmail || !credPassword) {
+      setCredError('Email and password are required');
+      return;
+    }
+    if (credPassword.length < 6) {
+      setCredError('Password must be at least 6 characters');
+      return;
+    }
+
+    setCredSubmitting(true);
+    setCredError('');
+    setCredSuccess('');
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const response = await supabase.functions.invoke('create-client-user', {
+        body: {
+          email: credEmail,
+          password: credPassword,
+          customerId: credClient.id,
+          organizationId: currentOrganization.id,
+        },
+        headers: {
+          Authorization: `Bearer ${sessionData.session?.access_token}`,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to assign credentials');
+      }
+
+      const result = response.data;
+      if (result.error) throw new Error(result.error);
+
+      setCredSuccess(`Credentials ${credClient.portal_user ? 'updated' : 'created'} successfully! Share with client:\n\nEmail: ${credEmail}\nPassword: ${credPassword}`);
+      await fetchClients();
+    } catch (error: any) {
+      setCredError(error.message || 'Failed to assign credentials');
+    } finally {
+      setCredSubmitting(false);
+    }
+  };
+
   const filtered = clients.filter(c =>
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.customer_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -196,12 +275,13 @@ export default function ClientsPage() {
                 <th className="text-left px-6 py-3 text-xs font-medium text-slate-600 uppercase">Phone / Email</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-slate-600 uppercase">Projects</th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-slate-600 uppercase">Status</th>
+                <th className="text-left px-6 py-3 text-xs font-medium text-slate-600 uppercase">Portal</th>
                 <th className="text-right px-6 py-3 text-xs font-medium text-slate-600 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {filtered.length === 0 ? (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-600">No clients found.</td></tr>
+                <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-600">No clients found.</td></tr>
               ) : (
                 filtered.map((client) => (
                   <tr key={client.id} className="hover:bg-slate-50">
@@ -224,8 +304,21 @@ export default function ClientsPage() {
                         {client.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
+                    <td className="px-6 py-4">
+                      {client.portal_user ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                          <ShieldCheck className="w-3 h-3" />
+                          Has Login
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">No login</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-right">
-                      <button onClick={() => handleEdit(client)} className="text-blue-600 hover:text-blue-700 p-2 hover:bg-blue-50 rounded transition mr-2"><Edit className="w-4 h-4" /></button>
+                      <button onClick={() => openCredModal(client)} className="text-amber-600 hover:text-amber-700 p-2 hover:bg-amber-50 rounded transition mr-1" title="Set Login Credentials">
+                        <KeyRound className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleEdit(client)} className="text-blue-600 hover:text-blue-700 p-2 hover:bg-blue-50 rounded transition mr-1"><Edit className="w-4 h-4" /></button>
                       <button onClick={() => handleDelete(client)} className="text-red-600 hover:text-red-700 p-2 hover:bg-red-50 rounded transition"><Trash2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
@@ -236,6 +329,7 @@ export default function ClientsPage() {
         </div>
       </div>
 
+      {/* Add/Edit Client Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -269,6 +363,89 @@ export default function ClientsPage() {
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={handleCloseModal} className="flex-1 px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition">Cancel</button>
                 <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">{editingClient ? 'Update Client' : 'Add Client'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Credential Assignment Modal */}
+      {showCredModal && credClient && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full">
+            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  {credClient.portal_user ? 'Update Login Credentials' : 'Assign Login Credentials'}
+                </h2>
+                <p className="text-sm text-slate-600 mt-1">{credClient.name}</p>
+              </div>
+              <button onClick={() => setShowCredModal(false)} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleCredSubmit} className="p-6 space-y-4">
+              {credClient.portal_user && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-2 text-sm text-blue-800">
+                  <ShieldCheck className="w-4 h-4 flex-shrink-0" />
+                  <span>This client already has login access ({credClient.portal_user.email}). Updating will change their credentials.</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Login Email *</label>
+                <input
+                  type="email"
+                  value={credEmail}
+                  onChange={(e) => setCredEmail(e.target.value)}
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Password *</label>
+                <div className="relative">
+                  <input
+                    type={credShowPassword ? 'text' : 'password'}
+                    value={credPassword}
+                    onChange={(e) => setCredPassword(e.target.value)}
+                    className="w-full px-4 py-2 pr-10 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Min 6 characters"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCredShowPassword(!credShowPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {credShowPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {credError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">{credError}</div>
+              )}
+
+              {credSuccess && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-green-800 font-medium mb-2">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Credentials Saved
+                  </div>
+                  <pre className="text-sm text-green-700 whitespace-pre-wrap font-mono bg-green-100 rounded p-2">{credSuccess.split('\n\n')[1]}</pre>
+                  <p className="text-xs text-green-600 mt-2">Share these credentials with the client. They can login at /client-portal</p>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowCredModal(false)} className="flex-1 px-4 py-2 border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition">
+                  {credSuccess ? 'Close' : 'Cancel'}
+                </button>
+                {!credSuccess && (
+                  <button type="submit" disabled={credSubmitting} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition flex items-center justify-center gap-2">
+                    <KeyRound className="w-4 h-4" />
+                    {credSubmitting ? 'Saving...' : credClient.portal_user ? 'Update Credentials' : 'Create Credentials'}
+                  </button>
+                )}
               </div>
             </form>
           </div>

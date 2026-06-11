@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useOrganization } from '../../contexts/OrganizationContext';
 import { supabase } from '../../lib/supabase';
-import { Lock, Radio, DollarSign, CreditCard, HardHat, User, Calendar, FileText, Building2 } from 'lucide-react';
+import { Lock, Radio, HardHat, User, Calendar, FileText, Building2 } from 'lucide-react';
 
 interface OfficePayment {
   id: string;

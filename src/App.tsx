@@ -6,14 +6,31 @@ import Auth from './pages/Auth';
 import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 import EngineerDashboard from './components/engineers/EngineerDashboard';
+import ClientPortal from './pages/client-portal/ClientPortal';
 
 function App() {
   const { user, loading: authLoading } = useAuth();
   const { organizations, loading: orgLoading } = useOrganization();
   const [isSiteEngineer, setIsSiteEngineer] = useState(false);
   const [roleChecked, setRoleChecked] = useState(false);
+  const [isClientPortal, setIsClientPortal] = useState(false);
 
   useEffect(() => {
+    const checkRoute = () => {
+      const hash = window.location.hash;
+      const path = window.location.pathname;
+      setIsClientPortal(hash === '#/client-portal' || path === '/client-portal');
+    };
+    checkRoute();
+    window.addEventListener('hashchange', checkRoute);
+    return () => window.removeEventListener('hashchange', checkRoute);
+  }, []);
+
+  useEffect(() => {
+    if (isClientPortal) {
+      setRoleChecked(true);
+      return;
+    }
     if (!user) {
       setIsSiteEngineer(false);
       setRoleChecked(true);
@@ -38,7 +55,11 @@ function App() {
       setIsSiteEngineer(hasEngineerProfile && !hasOrgRole);
       setRoleChecked(true);
     })();
-  }, [user]);
+  }, [user, isClientPortal]);
+
+  if (isClientPortal) {
+    return <ClientPortal />;
+  }
 
   if (authLoading || orgLoading || !roleChecked) {
     return (
