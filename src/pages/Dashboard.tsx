@@ -18,6 +18,7 @@ import SiteExpensesPage from '../components/expenses/SiteExpensesPage';
 import VendorsPage from '../components/vendors/VendorsPage';
 import VendorQuotationsPage from '../components/vendors/VendorQuotationsPage';
 import VendorPaymentsPage from '../components/vendors/VendorPaymentsPage';
+import VendorPaymentLedger from '../components/vendors/VendorPaymentLedger';
 import CashTransferPage from '../components/general/CashTransferPage';
 import VendorBalanceReport from '../components/reports/VendorBalanceReport';
 import CashBalanceReport from '../components/reports/CashBalanceReport';
@@ -40,6 +41,7 @@ type PageType =
   | 'vendors'
   | 'vendor-quotations'
   | 'vendor-payments'
+  | 'vendor-ledger'
   | 'cash-transfer'
   | 'report-vendor-balance'
   | 'report-cash-balance'
@@ -94,6 +96,7 @@ const navigationGroups: NavGroup[] = [
       { id: 'vendors', label: 'Manage Vendors', icon: ShoppingCart },
       { id: 'vendor-quotations', label: 'Quotations', icon: FileCheck },
       { id: 'vendor-payments', label: 'Payments', icon: Wallet },
+      { id: 'vendor-ledger', label: 'Payment Ledger', icon: BarChart3 },
     ],
   },
   {
@@ -168,6 +171,7 @@ export default function Dashboard() {
       case 'vendors': return <VendorsPage />;
       case 'vendor-quotations': return <VendorQuotationsPage />;
       case 'vendor-payments': return <VendorPaymentsPage />;
+      case 'vendor-ledger': return <VendorPaymentLedger />;
       case 'cash-transfer': return <CashTransferPage />;
       case 'report-vendor-balance': return <VendorBalanceReport />;
       case 'report-cash-balance': return <CashBalanceReport />;
