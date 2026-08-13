@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import FileViewer, { type Attachment } from '../../components/common/FileViewer';
 import {
   Building2, LayoutDashboard, DollarSign, CreditCard, Wallet, FileCheck,
   LogOut, Menu, TrendingUp, TrendingDown, Scale, ChevronRight, Calendar,
   CheckCircle2, Clock, X, Paperclip, FileText, Image as ImageIcon,
-  ExternalLink, Download, Loader2
+  ExternalLink, Search, Receipt, Eye,
 } from 'lucide-react';
 
 type PortalPage = 'overview' | 'income' | 'expenses' | 'vendor-payments' | 'quotations';
@@ -39,16 +40,10 @@ interface ExpenseRecord {
   payment_method: string | null;
   notes: string | null;
   vendor_id: string | null;
+  management_fee_percent: number | null;
+  source_income_id: string | null;
   project?: { project_code: string; project_name: string } | null;
   vendor?: { name: string } | null;
-}
-
-interface ManagementFeeRecord {
-  id: string;
-  income_number: string;
-  payment_date: string;
-  management_fee_amount: number;
-  project?: { project_code: string; project_name: string } | null;
 }
 
 interface VendorPaymentRecord {
@@ -84,21 +79,9 @@ interface QuotationRecord {
   valid_until: string | null;
   notes: string | null;
   total_amount: number;
-  project?: { project_code: string; project_name: string } | null;
   vendor?: { name: string } | null;
+  project?: { project_code: string; project_name: string } | null;
   lines?: QuotationLine[];
-}
-
-interface Attachment {
-  id: string;
-  entity_type: string;
-  entity_id: string;
-  kind: 'file' | 'link';
-  file_name: string;
-  file_path: string | null;
-  file_size: number | null;
-  mime_type: string | null;
-  external_url: string | null;
 }
 
 interface PortalDashboardProps {
@@ -110,20 +93,39 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
   const [income, setIncome] = useState<IncomeRecord[]>([]);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
-  const [managementFees, setManagementFees] = useState<ManagementFeeRecord[]>([]);
   const [vendorPayments, setVendorPayments] = useState<VendorPaymentRecord[]>([]);
   const [quotations, setQuotations] = useState<QuotationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [approving, setApproving] = useState<string | null>(null);
 
-  // Modal states
-  const [selectedExpense, setSelectedExpense] = useState<ExpenseRecord | ManagementFeeRecord | null>(null);
-  const [expenseAttachments, setExpenseAttachments] = useState<Attachment[]>([]);
-  const [loadingAttachments, setLoadingAttachments] = useState(false);
+  // Search states (debounced)
+  const [expenseSearch, setExpenseSearch] = useState('');
+  const [quotationSearch, setQuotationSearch] = useState('');
+  const [debouncedExpenseSearch, setDebouncedExpenseSearch] = useState('');
+  const [debouncedQuotationSearch, setDebouncedQuotationSearch] = useState('');
+
+  // FileViewer state
+  const [viewerAttachments, setViewerAttachments] = useState<Attachment[]>([]);
+  const [viewerStartIndex, setViewerStartIndex] = useState(0);
+  const [viewerTitle, setViewerTitle] = useState('');
+  const [showViewer, setShowViewer] = useState(false);
+
+  // Quotation detail modal
   const [selectedQuotation, setSelectedQuotation] = useState<QuotationRecord | null>(null);
   const [quotationAttachments, setQuotationAttachments] = useState<Attachment[]>([]);
   const [loadingQuotationAttachments, setLoadingQuotationAttachments] = useState(false);
+
+  // Debounce search inputs
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedExpenseSearch(expenseSearch), 300);
+    return () => clearTimeout(t);
+  }, [expenseSearch]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuotationSearch(quotationSearch), 300);
+    return () => clearTimeout(t);
+  }, [quotationSearch]);
 
   useEffect(() => {
     loadClientData();
@@ -140,7 +142,6 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
         .eq('user_id', user.id)
         .eq('is_active', true)
         .maybeSingle();
-
       if (!portalUser) return;
 
       const { data: customer } = await supabase
@@ -148,7 +149,6 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
         .select('id, name, customer_number, organization_id')
         .eq('id', portalUser.customer_id)
         .maybeSingle();
-
       if (!customer) return;
       setClientInfo(customer);
 
@@ -158,46 +158,33 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
         .eq('client_id', customer.id);
 
       const projectIds = (projects || []).map(p => p.id);
+      if (projectIds.length === 0) { setLoading(false); return; }
 
-      if (projectIds.length > 0) {
-        const [incomeRes, expensesRes, paymentsRes, quotationsRes] = await Promise.all([
-          supabase.from('project_income')
-            .select('id, income_number, payment_date, amount, management_fee_amount, payment_method, notes, project:projects(project_code, project_name)')
-            .in('project_id', projectIds)
-            .order('payment_date', { ascending: false }),
-          supabase.from('project_expenses')
-            .select('id, expense_number, expense_date, description, amount, category, expense_type, status, payment_method, notes, vendor_id, project:projects(project_code, project_name), vendor:vendors(name)')
-            .in('project_id', projectIds)
-            .eq('status', 'confirmed')
-            .order('expense_date', { ascending: false }),
-          supabase.from('vendor_project_payments')
-            .select('id, payment_number, payment_date, amount, client_amount, office_amount, payment_method, reference, notes, vendor:vendors(name), project:projects(project_code, project_name)')
-            .in('project_id', projectIds)
-            .gt('client_amount', 0)
-            .order('payment_date', { ascending: false }),
-          supabase.from('vendor_quotations')
-            .select('id, quotation_number, quotation_date, description, status, valid_until, notes, total_amount, vendor:vendors(name), project:projects(project_code, project_name), lines:quotation_lines(id, item_description, profession, quantity, measurement_unit, rate_for_client, total_amount_client)')
-            .in('project_id', projectIds)
-            .order('quotation_date', { ascending: false }),
-        ]);
+      const [incomeRes, expensesRes, paymentsRes, quotationsRes] = await Promise.all([
+        supabase.from('project_income')
+          .select('id, income_number, payment_date, amount, management_fee_amount, payment_method, notes, project:projects(project_code, project_name)')
+          .in('project_id', projectIds)
+          .order('payment_date', { ascending: false }),
+        supabase.from('project_expenses')
+          .select('id, expense_number, expense_date, description, amount, category, expense_type, status, payment_method, notes, vendor_id, management_fee_percent, source_income_id, project:projects(project_code, project_name), vendor:vendors(name)')
+          .in('project_id', projectIds)
+          .eq('status', 'confirmed')
+          .order('expense_date', { ascending: false }),
+        supabase.from('vendor_project_payments')
+          .select('id, payment_number, payment_date, amount, client_amount, office_amount, payment_method, reference, notes, vendor:vendors(name), project:projects(project_code, project_name)')
+          .in('project_id', projectIds)
+          .gt('client_amount', 0)
+          .order('payment_date', { ascending: false }),
+        supabase.from('vendor_quotations')
+          .select('id, quotation_number, quotation_date, description, status, valid_until, notes, total_amount, vendor:vendors(name), project:projects(project_code, project_name), lines:quotation_lines(id, item_description, profession, quantity, measurement_unit, rate_for_client, total_amount_client)')
+          .in('project_id', projectIds)
+          .order('quotation_date', { ascending: false }),
+      ]);
 
-        setIncome(incomeRes.data || []);
-        setExpenses(expensesRes.data || []);
-        setVendorPayments(paymentsRes.data || []);
-        setQuotations(quotationsRes.data || []);
-
-        // Extract management fees from income records
-        const fees = (incomeRes.data || [])
-          .filter(r => Number(r.management_fee_amount) > 0)
-          .map(r => ({
-            id: r.id,
-            income_number: r.income_number,
-            payment_date: r.payment_date,
-            management_fee_amount: r.management_fee_amount,
-            project: r.project,
-          }));
-        setManagementFees(fees);
-      }
+      setIncome(incomeRes.data || []);
+      setExpenses(expensesRes.data || []);
+      setVendorPayments(paymentsRes.data || []);
+      setQuotations(quotationsRes.data || []);
     } catch (error) {
       console.error('Error loading client data:', error);
     } finally {
@@ -230,47 +217,43 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
     onLogout();
   };
 
-  const openExpenseModal = async (expense: ExpenseRecord | ManagementFeeRecord) => {
-    setSelectedExpense(expense);
-    setExpenseAttachments([]);
-    setLoadingAttachments(true);
+  const fetchAttachments = useCallback(async (entityType: string, entityId: string): Promise<Attachment[]> => {
+    const { data, error } = await supabase
+      .from('attachments')
+      .select('id, kind, file_name, file_path, file_size, mime_type, external_url')
+      .eq('entity_type', entityType)
+      .eq('entity_id', entityId);
+    if (error) { console.error('Error loading attachments:', error); return []; }
+    return (data || []) as Attachment[];
+  }, []);
 
-    const isManagementFee = 'management_fee_amount' in expense;
-    const entityType = isManagementFee ? 'project_income' : ((expense as ExpenseRecord).expense_type === 'site_expense' ? 'site_expense' : 'general_expense');
-
-    try {
-      const { data } = await supabase
-        .from('attachments')
-        .select('id, entity_type, entity_id, kind, file_name, file_path, file_size, mime_type, external_url')
-        .eq('entity_type', entityType)
-        .eq('entity_id', expense.id);
-
-      setExpenseAttachments(data || []);
-    } catch (error) {
-      console.error('Error loading attachments:', error);
-    } finally {
-      setLoadingAttachments(false);
-    }
+  const openExpenseViewer = async (expense: ExpenseRecord) => {
+    const entityType = expense.expense_type === 'site_expense' ? 'site_expense' : 'general_expense';
+    const atts = await fetchAttachments(entityType, expense.id);
+    setViewerAttachments(atts);
+    setViewerStartIndex(0);
+    setViewerTitle(`Receipt — ${expense.expense_number}`);
+    setShowViewer(true);
   };
 
-  const openQuotationModal = async (quotation: QuotationRecord) => {
+  const openQuotationViewer = async (quotation: QuotationRecord) => {
     setSelectedQuotation(quotation);
     setQuotationAttachments([]);
     setLoadingQuotationAttachments(true);
-
     try {
-      const { data } = await supabase
-        .from('attachments')
-        .select('id, entity_type, entity_id, kind, file_name, file_path, file_size, mime_type, external_url')
-        .eq('entity_type', 'vendor_quotation')
-        .eq('entity_id', quotation.id);
-
-      setQuotationAttachments(data || []);
-    } catch (error) {
-      console.error('Error loading quotation attachments:', error);
+      const atts = await fetchAttachments('vendor_quotation', quotation.id);
+      setQuotationAttachments(atts);
     } finally {
       setLoadingQuotationAttachments(false);
     }
+  };
+
+  const openQuotationAttachmentViewer = (startIndex: number) => {
+    if (quotationAttachments.length === 0) return;
+    setViewerAttachments(quotationAttachments);
+    setViewerStartIndex(startIndex);
+    setViewerTitle(`Attachments — ${selectedQuotation?.quotation_number || ''}`);
+    setShowViewer(true);
   };
 
   const downloadAttachment = async (att: Attachment) => {
@@ -296,32 +279,61 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
 
   const formatDate = (date: string) => new Date(date).toLocaleDateString();
 
-  // Combined expenses list: project expenses + management fees
-  const allExpenses = [
-    ...expenses.map(e => ({
-      id: e.id,
-      number: e.expense_number,
-      date: e.expense_date,
-      description: e.description,
-      amount: Number(e.amount),
-      category: e.category || (e.expense_type === 'site_expense' ? 'Site Expense' : 'General Expense'),
-      isManagementFee: false,
-      raw: e,
-    })),
-    ...managementFees.map(f => ({
-      id: f.id,
-      number: `MF-${f.income_number}`,
-      date: f.payment_date,
-      description: `Management Fee (from ${f.income_number})`,
-      amount: Number(f.management_fee_amount),
-      category: 'Management Fee',
-      isManagementFee: true,
-      raw: f,
-    })),
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Filtered expenses (debounced search)
+  const filteredExpenses = useMemo(() => {
+    if (!debouncedExpenseSearch.trim()) return expenses;
+    const q = debouncedExpenseSearch.toLowerCase();
+    return expenses.filter(e =>
+      (e.expense_number || '').toLowerCase().includes(q) ||
+      (e.description || '').toLowerCase().includes(q) ||
+      String(e.amount).includes(q) ||
+      (e.category || '').toLowerCase().includes(q) ||
+      (e.expense_date || '').includes(q) ||
+      (e.vendor?.name || '').toLowerCase().includes(q) ||
+      (e.notes || '').toLowerCase().includes(q) ||
+      (e.payment_method || '').toLowerCase().includes(q) ||
+      (e.project?.project_name || '').toLowerCase().includes(q) ||
+      (e.project?.project_code || '').toLowerCase().includes(q)
+    );
+  }, [expenses, debouncedExpenseSearch]);
+
+  // Filtered quotations (debounced search across all fields including line items)
+  const filteredQuotations = useMemo(() => {
+    if (!debouncedQuotationSearch.trim()) return quotations;
+    const q = debouncedQuotationSearch.toLowerCase();
+    return quotations.filter(qu => {
+      const lineMatch = (qu.lines || []).some(l =>
+        (l.item_description || '').toLowerCase().includes(q) ||
+        (l.profession || '').toLowerCase().includes(q)
+      );
+      return (
+        (qu.quotation_number || '').toLowerCase().includes(q) ||
+        (qu.description || '').toLowerCase().includes(q) ||
+        (qu.status || '').toLowerCase().includes(q) ||
+        (qu.notes || '').toLowerCase().includes(q) ||
+        (qu.vendor?.name || '').toLowerCase().includes(q) ||
+        (qu.project?.project_name || '').toLowerCase().includes(q) ||
+        (qu.project?.project_code || '').toLowerCase().includes(q) ||
+        (qu.quotation_date || '').includes(q) ||
+        String(qu.total_amount).includes(q) ||
+        lineMatch
+      );
+    });
+  }, [quotations, debouncedQuotationSearch]);
+
+  const managementFeeExpenses = useMemo(() =>
+    expenses.filter(e => e.expense_type === 'management_fee'),
+    [expenses]
+  );
+
+  const regularExpenses = useMemo(() =>
+    expenses.filter(e => e.expense_type !== 'management_fee'),
+    [expenses]
+  );
 
   const totalIncome = income.reduce((s, r) => s + Number(r.amount), 0);
-  const totalExpenses = allExpenses.reduce((s, r) => s + r.amount, 0);
+  const totalExpenses = expenses.reduce((s, r) => s + Number(r.amount), 0);
+  const totalManagementFees = managementFeeExpenses.reduce((s, r) => s + Number(r.amount), 0);
   const totalVendorPayments = vendorPayments.reduce((s, r) => s + Number(r.client_amount || 0), 0);
   const outstandingBalance = totalIncome - totalExpenses - totalVendorPayments;
 
@@ -359,7 +371,6 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
             </div>
           </div>
         </div>
-
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map((item) => (
             <button
@@ -376,7 +387,6 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
             </button>
           ))}
         </nav>
-
         <div className="p-3 border-t border-slate-800">
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition">
             <LogOut className="w-4 h-4" />
@@ -407,11 +417,18 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
         </div>
       </main>
 
-      {/* Expense Detail Modal */}
-      {selectedExpense && renderExpenseModal()}
-
       {/* Quotation Detail Modal */}
       {selectedQuotation && renderQuotationModal()}
+
+      {/* Full-screen File Viewer */}
+      {showViewer && (
+        <FileViewer
+          attachments={viewerAttachments}
+          startIndex={viewerStartIndex}
+          onClose={() => setShowViewer(false)}
+          title={viewerTitle}
+        />
+      )}
     </div>
   );
 
@@ -424,6 +441,18 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
           <SummaryCard icon={Wallet} label="Vendor Payments" value={formatCurrency(totalVendorPayments)} color="blue" />
           <SummaryCard icon={Scale} label="Outstanding Balance" value={formatCurrency(outstandingBalance)} color={outstandingBalance >= 0 ? 'green' : 'amber'} />
         </div>
+
+        {totalManagementFees > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-amber-900">Management Fees Auto-Deducted</p>
+              <p className="text-xs text-amber-700">{formatCurrency(totalManagementFees)} has been automatically deducted from your income as management fee expenses.</p>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-xl border border-slate-200 p-5">
@@ -509,7 +538,7 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
                 <tr>
                   <td colSpan={4} className="px-5 py-3 text-sm font-bold text-slate-900 text-right">Total</td>
                   <td className="px-5 py-3 text-right text-sm font-bold text-green-700">{formatCurrency(totalIncome)}</td>
-                  <td className="px-5 py-3 text-right text-sm font-bold text-amber-700">{formatCurrency(managementFees.reduce((s, f) => s + Number(f.management_fee_amount), 0))}</td>
+                  <td className="px-5 py-3 text-right text-sm font-bold text-amber-700">{formatCurrency(totalManagementFees)}</td>
                   <td></td>
                 </tr>
               </tfoot>
@@ -523,6 +552,18 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
   function renderExpenses() {
     return (
       <div className="space-y-4">
+        {/* Search bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={expenseSearch}
+            onChange={(e) => setExpenseSearch(e.target.value)}
+            placeholder="Search expenses by number, description, amount, vendor, category, date, project, notes..."
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+        </div>
+
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -538,43 +579,56 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {allExpenses.length === 0 ? (
-                  <tr><td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-500">No expense records found.</td></tr>
-                ) : allExpenses.map(r => (
-                  <tr
-                    key={r.id}
-                    className="hover:bg-slate-50/50 cursor-pointer transition"
-                    onClick={() => openExpenseModal(r.raw)}
-                  >
-                    <td className="px-5 py-3.5 text-sm font-medium text-slate-900">{r.number}</td>
-                    <td className="px-5 py-3.5 text-sm text-slate-600">
-                      <div className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-400" />{formatDate(r.date)}</div>
-                    </td>
-                    <td className="px-5 py-3.5 text-sm text-slate-900 max-w-[200px] truncate">{r.description}</td>
-                    <td className="px-5 py-3.5 text-sm text-slate-600">{r.raw.project?.project_name || '-'}</td>
-                    <td className="px-5 py-3.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
-                        r.isManagementFee
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-slate-100 text-slate-700'
-                      }`}>{r.category}</span>
-                    </td>
-                    <td className="px-5 py-3.5 text-right text-sm font-semibold text-red-700">{formatCurrency(r.amount)}</td>
-                    <td className="px-5 py-3.5 text-center">
-                      {!r.isManagementFee && (
-                        <span className="inline-flex items-center gap-1 text-xs text-blue-600">
-                          <Paperclip className="w-3.5 h-3.5" /> View
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {filteredExpenses.length === 0 ? (
+                  <tr><td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-500">{debouncedExpenseSearch ? 'No expenses match your search.' : 'No expense records found.'}</td></tr>
+                ) : filteredExpenses.map(e => {
+                  const isMF = e.expense_type === 'management_fee';
+                  return (
+                    <tr key={e.id} className="hover:bg-slate-50/50">
+                      <td className="px-5 py-3.5 text-sm font-medium text-slate-900">{e.expense_number}</td>
+                      <td className="px-5 py-3.5 text-sm text-slate-600">
+                        <div className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-400" />{formatDate(e.expense_date)}</div>
+                      </td>
+                      <td className="px-5 py-3.5 text-sm text-slate-900 max-w-[200px] truncate">{e.description}</td>
+                      <td className="px-5 py-3.5 text-sm text-slate-600">{e.project?.project_name || '-'}</td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {isMF && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 whitespace-nowrap">
+                              Auto - Management Fee
+                            </span>
+                          )}
+                          {!isMF && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 capitalize whitespace-nowrap">
+                              {e.category || (e.expense_type === 'site' ? 'Site Expense' : 'General Expense')}
+                            </span>
+                          )}
+                          {isMF && e.management_fee_percent != null && (
+                            <span className="text-xs text-amber-600">({Number(e.management_fee_percent)}%)</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-right text-sm font-semibold text-red-700">{formatCurrency(Number(e.amount))}</td>
+                      <td className="px-5 py-3.5 text-center">
+                        {!isMF && (
+                          <button
+                            onClick={() => openExpenseViewer(e)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition"
+                          >
+                            <Receipt className="w-3.5 h-3.5" /> View
+                          </button>
+                        )}
+                        {isMF && <span className="text-xs text-slate-400">—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
-              {allExpenses.length > 0 && (
+              {filteredExpenses.length > 0 && (
                 <tfoot className="bg-slate-50 border-t border-slate-200">
                   <tr>
                     <td colSpan={5} className="px-5 py-3 text-sm font-bold text-slate-900 text-right">Total</td>
-                    <td className="px-5 py-3 text-right text-sm font-bold text-red-700">{formatCurrency(totalExpenses)}</td>
+                    <td className="px-5 py-3 text-right text-sm font-bold text-red-700">{formatCurrency(filteredExpenses.reduce((s, e) => s + Number(e.amount), 0))}</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -582,7 +636,9 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
             </table>
           </div>
         </div>
-        <p className="text-xs text-slate-500">Click any expense row to view details and receipts. Management fees are automatically deducted from project income.</p>
+        <p className="text-xs text-slate-500">
+          Management fees are automatically deducted from project income. Click "View" to open the receipt viewer with support for images, PDFs, video, and audio.
+        </p>
       </div>
     );
   }
@@ -640,7 +696,20 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
   function renderQuotations() {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-slate-600">View and approve quotations for your projects. Click a quotation to see line items and attachments. Amounts shown are client-facing rates.</p>
+        {/* Search bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={quotationSearch}
+            onChange={(e) => setQuotationSearch(e.target.value)}
+            placeholder="Search quotations by number, vendor, project, line items, description, status, notes..."
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+        </div>
+
+        <p className="text-sm text-slate-600">View and approve quotations for your projects. Click a quotation to see line items and open attachments in the multi-format viewer.</p>
+
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -657,15 +726,15 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {quotations.length === 0 ? (
-                  <tr><td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-500">No quotations found.</td></tr>
-                ) : quotations.map(q => {
+                {filteredQuotations.length === 0 ? (
+                  <tr><td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-500">{debouncedQuotationSearch ? 'No quotations match your search.' : 'No quotations found.'}</td></tr>
+                ) : filteredQuotations.map(q => {
                   const clientTotal = (q.lines || []).reduce((s, l) => s + Number(l.total_amount_client), 0);
                   return (
                     <tr
                       key={q.id}
                       className="hover:bg-slate-50/50 cursor-pointer transition"
-                      onClick={() => openQuotationModal(q)}
+                      onClick={() => openQuotationViewer(q)}
                     >
                       <td className="px-5 py-3.5 text-sm font-medium text-slate-900">{q.quotation_number}</td>
                       <td className="px-5 py-3.5 text-sm text-slate-600">{formatDate(q.quotation_date)}</td>
@@ -713,139 +782,12 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
     );
   }
 
-  function renderExpenseModal() {
-    const isManagementFee = 'management_fee_amount' in selectedExpense;
-    const amount = isManagementFee
-      ? Number((selectedExpense as ManagementFeeRecord).management_fee_amount)
-      : Number((selectedExpense as ExpenseRecord).amount);
-
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setSelectedExpense(null)}>
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center justify-between p-5 border-b border-slate-200">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isManagementFee ? 'bg-amber-100' : 'bg-red-100'}`}>
-                {isManagementFee ? <DollarSign className="w-5 h-5 text-amber-600" /> : <CreditCard className="w-5 h-5 text-red-600" />}
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900">Expense Details</h3>
-                <p className="text-xs text-slate-500">
-                  {isManagementFee ? 'Management Fee' : (selectedExpense as ExpenseRecord).expense_number}
-                </p>
-              </div>
-            </div>
-            <button onClick={() => setSelectedExpense(null)} className="p-2 hover:bg-slate-100 rounded-lg transition">
-              <X className="w-5 h-5 text-slate-500" />
-            </button>
-          </div>
-
-          <div className="p-5 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs font-medium text-slate-500 uppercase mb-1">Date</p>
-                <p className="text-sm text-slate-900">{formatDate(isManagementFee ? (selectedExpense as ManagementFeeRecord).payment_date : (selectedExpense as ExpenseRecord).expense_date)}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500 uppercase mb-1">Amount</p>
-                <p className="text-sm font-bold text-red-700">{formatCurrency(amount)}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-500 uppercase mb-1">Project</p>
-                <p className="text-sm text-slate-900">{selectedExpense.project?.project_name || '-'}</p>
-              </div>
-              {!isManagementFee && (
-                <>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase mb-1">Category</p>
-                    <p className="text-sm text-slate-900 capitalize">{(selectedExpense as ExpenseRecord).category || '-'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase mb-1">Payment Method</p>
-                    <p className="text-sm text-slate-900 capitalize">{((selectedExpense as ExpenseRecord).payment_method || '-').replace('_', ' ')}</p>
-                  </div>
-                  {(selectedExpense as ExpenseRecord).vendor?.name && (
-                    <div>
-                      <p className="text-xs font-medium text-slate-500 uppercase mb-1">Vendor</p>
-                      <p className="text-sm text-slate-900">{(selectedExpense as ExpenseRecord).vendor?.name}</p>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {!isManagementFee && (selectedExpense as ExpenseRecord).description && (
-              <div>
-                <p className="text-xs font-medium text-slate-500 uppercase mb-1">Description</p>
-                <p className="text-sm text-slate-900">{(selectedExpense as ExpenseRecord).description}</p>
-              </div>
-            )}
-
-            {!isManagementFee && (selectedExpense as ExpenseRecord).notes && (
-              <div>
-                <p className="text-xs font-medium text-slate-500 uppercase mb-1">Notes</p>
-                <p className="text-sm text-slate-600">{(selectedExpense as ExpenseRecord).notes}</p>
-              </div>
-            )}
-
-            {isManagementFee && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                This management fee was automatically deducted from income record {(selectedExpense as ManagementFeeRecord).income_number}.
-              </div>
-            )}
-
-            {/* Receipts / Attachments */}
-            {!isManagementFee && (
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Paperclip className="w-4 h-4 text-slate-400" />
-                  <p className="text-xs font-medium text-slate-500 uppercase">Receipts & Attachments</p>
-                </div>
-                {loadingAttachments ? (
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Loading attachments...
-                  </div>
-                ) : expenseAttachments.length === 0 ? (
-                  <p className="text-sm text-slate-400 py-3 text-center bg-slate-50 rounded-lg">No receipts attached</p>
-                ) : (
-                  <div className="space-y-2">
-                    {expenseAttachments.map(att => (
-                      <button
-                        key={att.id}
-                        onClick={() => downloadAttachment(att)}
-                        className="w-full flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition text-left"
-                      >
-                        {att.kind === 'link' ? (
-                          <ExternalLink className="w-5 h-5 text-blue-500 flex-shrink-0" />
-                        ) : att.mime_type?.startsWith('image/') ? (
-                          <ImageIcon className="w-5 h-5 text-green-500 flex-shrink-0" />
-                        ) : (
-                          <FileText className="w-5 h-5 text-slate-500 flex-shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-900 truncate">{att.file_name}</p>
-                          <p className="text-xs text-slate-500">
-                            {att.kind === 'link' ? 'External link' : att.file_size ? `${(att.file_size / 1024).toFixed(0)} KB` : 'File'}
-                          </p>
-                        </div>
-                        <Download className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   function renderQuotationModal() {
     if (!selectedQuotation) return null;
     const clientTotal = (selectedQuotation.lines || []).reduce((s, l) => s + Number(l.total_amount_client), 0);
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setSelectedQuotation(null)}>
+      <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/50" onClick={() => setSelectedQuotation(null)}>
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between p-5 border-b border-slate-200 sticky top-0 bg-white z-10">
             <div className="flex items-center gap-3">
@@ -948,23 +890,33 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
 
             {/* Attachments */}
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Paperclip className="w-4 h-4 text-slate-400" />
-                <p className="text-xs font-medium text-slate-500 uppercase">Attachments</p>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Paperclip className="w-4 h-4 text-slate-400" />
+                  <p className="text-xs font-medium text-slate-500 uppercase">Attachments ({quotationAttachments.length})</p>
+                </div>
+                {quotationAttachments.length > 0 && (
+                  <button
+                    onClick={() => openQuotationAttachmentViewer(0)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition"
+                  >
+                    <Eye className="w-3.5 h-3.5" /> Open Viewer
+                  </button>
+                )}
               </div>
               {loadingQuotationAttachments ? (
-                <div className="flex items-center gap-2 text-sm text-slate-500">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Loading attachments...
+                <div className="flex items-center gap-2 text-sm text-slate-500 py-3">
+                  <div className="w-4 h-4 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin"></div>
+                  Loading attachments...
                 </div>
               ) : quotationAttachments.length === 0 ? (
                 <p className="text-sm text-slate-400 py-3 text-center bg-slate-50 rounded-lg">No attachments</p>
               ) : (
                 <div className="space-y-2">
-                  {quotationAttachments.map(att => (
-                    <button
+                  {quotationAttachments.map((att, idx) => (
+                    <div
                       key={att.id}
-                      onClick={() => downloadAttachment(att)}
-                      className="w-full flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition text-left"
+                      className="flex items-center gap-3 p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition"
                     >
                       {att.kind === 'link' ? (
                         <ExternalLink className="w-5 h-5 text-blue-500 flex-shrink-0" />
@@ -979,8 +931,19 @@ export default function ClientPortalDashboard({ onLogout }: PortalDashboardProps
                           {att.kind === 'link' ? 'External link' : att.file_size ? `${(att.file_size / 1024).toFixed(0)} KB` : 'File'}
                         </p>
                       </div>
-                      <Download className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                    </button>
+                      <button
+                        onClick={() => openQuotationAttachmentViewer(idx)}
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-white hover:bg-blue-50 text-blue-600 text-xs font-medium rounded transition"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> View
+                      </button>
+                      <button
+                        onClick={() => downloadAttachment(att)}
+                        className="p-1.5 hover:bg-slate-200 rounded text-slate-400 transition"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}

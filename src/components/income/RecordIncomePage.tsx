@@ -124,7 +124,6 @@ export default function RecordIncomePage() {
     e.preventDefault();
     if (!currentOrganization || !user || !selectedProject) return;
     try {
-      const mfAmount = calcMfAmount(formData.amount, selectedProject.management_fee_on_income_percent);
       if (editing) {
         const { error } = await supabase
           .from('project_income')
@@ -135,7 +134,6 @@ export default function RecordIncomePage() {
             payment_method: formData.payment_method,
             received_by: formData.received_by,
             notes: formData.notes,
-            management_fee_amount: mfAmount,
           })
           .eq('id', editing.id);
         if (error) throw error;
@@ -149,7 +147,6 @@ export default function RecordIncomePage() {
           payment_method: formData.payment_method,
           received_by: formData.received_by,
           notes: formData.notes,
-          management_fee_amount: mfAmount,
           organization_id: currentOrganization.id,
           created_by: user.id,
         }]).select('*, project:projects(project_code, project_name, management_fee_percent, management_fee_on_income_percent)').single();
