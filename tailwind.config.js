@@ -48,9 +48,13 @@ export default {
       },
       keyframes: {
         'fade-in': { from: { opacity: '0', transform: 'translateY(4px)' }, to: { opacity: '1', transform: 'none' } },
+        'slide-in-right': { from: { transform: 'translateX(100%)' }, to: { transform: 'none' } },
+        'slide-in-left': { from: { transform: 'translateX(-100%)' }, to: { transform: 'none' } },
       },
       animation: {
         'fade-in': 'fade-in 200ms ease-out',
+        'slide-in-right': 'slide-in-right 240ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+        'slide-in-left': 'slide-in-left 240ms cubic-bezier(0.2, 0.8, 0.2, 1)',
       },
     },
   },

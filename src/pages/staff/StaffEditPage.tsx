@@ -10,6 +10,7 @@ import { isLastSuperAdminError, isNetworkError } from '../../lib/errors';
 import { supabase } from '../../lib/supabase';
 import { STAFF_COLUMNS, STAFF_ROLES, type StaffMember, type StaffRole } from '../../types';
 import { NotFoundPage } from '../NotFoundPage';
+import { AssignedCompaniesSection } from './AssignedCompaniesSection';
 import { PayDetailsSection } from './PayDetailsSection';
 import { ActiveBadge, StaffRoleBadge } from './StaffListPage';
 
@@ -73,6 +74,7 @@ export function StaffEditPage() {
         {!canEdit && <Alert tone="info">{t('staffEdit.readOnly')}</Alert>}
         <ProfileForm key={member.user_id} member={member} canEdit={canEdit} canEditRole={canEditRole} onSaved={setMember} />
         <PayDetailsSection userId={member.user_id} canEdit={canEdit} />
+        {(member.staff_role === 'checker' || member.staff_role === 'accountant') && <AssignedCompaniesSection userId={member.user_id} />}
       </div>
     </div>
   );

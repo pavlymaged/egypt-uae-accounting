@@ -12,10 +12,19 @@ import { supabase } from '../../lib/supabase';
 import { AuthLayout } from './AuthLayout';
 import { CodeForm } from './CodeForm';
 
-export function ResetPasswordPage() {
+const MIN_LENGTH = 12;
+
+function linkHasError(): boolean {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const query = new URLSearchParams(window.location.search);
+  return Boolean(params.get('error') || params.get('error_code') || query.get('error') || query.get('error_code'));
+}
+
+export function SetPasswordPage() {
   const { t } = useI18n();
   const { status, session } = useSession();
   const navigate = useNavigate();
+  const [linkError] = useState(linkHasError);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [errors, setErrors] = useState<{ password?: TranslationKey; confirm?: TranslationKey }>({});
@@ -51,7 +60,7 @@ export function ResetPasswordPage() {
     e.preventDefault();
     setFormError(null);
     const next: typeof errors = {};
-    if (password.length < 8) next.password = 'reset.passwordShort';
+    if (password.length < MIN_LENGTH) next.password = 'reset.passwordShort';
     if (confirm !== password) next.confirm = 'reset.passwordMismatch';
     setErrors(next);
     if (next.password || next.confirm) return;
@@ -66,12 +75,12 @@ export function ResetPasswordPage() {
     );
   }
 
-  if (!session && !done) {
+  if ((linkError || !session) && !done) {
     return (
       <AuthLayout title={t('reset.title')}>
-        <Alert tone="error">{t('reset.invalidLink')}</Alert>
-        <Link to="/forgot-password" className="mt-6 inline-flex font-medium text-brand-700 hover:underline">
-          {t('reset.requestNew')}
+        <Alert tone="error">{t('reset.expiredLink')}</Alert>
+        <Link to="/login" className="mt-6 inline-flex font-medium text-brand-700 hover:underline">
+          {t('reset.backToLogin')}
         </Link>
       </AuthLayout>
     );
@@ -112,6 +121,7 @@ export function ResetPasswordPage() {
     <AuthLayout title={t('reset.title')} subtitle={t('reset.body')}>
       <form onSubmit={onSubmit} noValidate className="space-y-5">
         {formError && <Alert tone="error">{formError}</Alert>}
+        <p dir="ltr" className="truncate text-sm text-ink-500 rtl:text-end">{session?.user.email}</p>
         <Field label={t('reset.newPassword')} error={errors.password ? t(errors.password) : null}>
           {(id, describedBy, invalid) => (
             <PasswordInput

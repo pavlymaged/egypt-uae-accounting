@@ -1,13 +1,15 @@
-import { ChevronRight, Search, Users } from 'lucide-react';
+import { ChevronRight, Search, UserPlus, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useStaff } from '../../auth/SessionProvider';
 import { Button } from '../../components/ui/Button';
 import { Alert, Badge, Card, EmptyState, PageHeader, Spinner } from '../../components/ui/Feedback';
 import { TextInput } from '../../components/ui/Field';
 import { useI18n } from '../../i18n/I18nProvider';
 import { formatDate } from '../../lib/dates';
 import { supabase } from '../../lib/supabase';
-import { STAFF_COLUMNS, type StaffMember, type StaffRole } from '../../types';
+import { STAFF_COLUMNS, STAFF_ROLES, type StaffMember, type StaffRole } from '../../types';
+import { AddStaffDialog } from './AddStaffDialog';
 
 const roleTones = { super_admin: 'gold', accounting_manager: 'brand', checker: 'sky', accountant: 'neutral' } as const;
 
@@ -28,6 +30,10 @@ export function StaffListPage() {
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [query, setQuery] = useState('');
+  const me = useStaff();
+  const [adding, setAdding] = useState(false);
+  const [invited, setInvited] = useState<string | null>(null);
+  const invitableRoles: readonly StaffRole[] = me?.staff_role === 'super_admin' ? STAFF_ROLES : ['checker', 'accountant'];
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +61,32 @@ export function StaffListPage() {
 
   return (
     <div className="animate-fade-in">
-      <PageHeader title={t('staff.title')} subtitle={t('staff.subtitle')} />
+      <PageHeader
+        title={t('staff.title')}
+        subtitle={t('staff.subtitle')}
+        actions={
+          <Button icon={<UserPlus className="h-4 w-4" />} onClick={() => { setInvited(null); setAdding(true); }}>
+            {t('invite.addStaff')}
+          </Button>
+        }
+      />
+
+      {invited && (
+        <div className="mb-4">
+          <Alert tone="success">{t('invite.sent', { email: invited })}</Alert>
+        </div>
+      )}
+
+      <AddStaffDialog
+        open={adding}
+        roles={invitableRoles}
+        onClose={() => setAdding(false)}
+        onInvited={(email) => {
+          setAdding(false);
+          setInvited(email);
+          setAttempt((a) => a + 1);
+        }}
+      />
 
       {failed && (
         <Alert tone="error" action={<Button variant="secondary" onClick={() => setAttempt((a) => a + 1)}>{t('common.retry')}</Button>}>

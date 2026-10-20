@@ -23,7 +23,11 @@ import {
 } from '../../types';
 import { EMAIL_RE } from '../auth/LoginPage';
 import { NotFoundPage } from '../NotFoundPage';
+import { AssignedStaffPanel } from './AssignedStaffPanel';
 import { CompanyStatusBadge } from './CompanyBadges';
+import { CompanyTabs, useCompanyTab } from './CompanyTabs';
+import { CompanyUsersPanel } from './CompanyUsersPanel';
+import { SupportPanel } from './SupportPanel';
 
 interface FormValues {
   code: string;
@@ -76,6 +80,7 @@ export function CompanyFormPage() {
   const location = useLocation();
 
   const [company, setCompany] = useState<Company | null>(null);
+  const [tab, setTab] = useCompanyTab(company);
   const [values, setValues] = useState<FormValues>(EMPTY);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'notFound' | 'failed'>(isNew ? 'ready' : 'loading');
   const [attempt, setAttempt] = useState(0);
@@ -244,7 +249,13 @@ export function CompanyFormPage() {
         }
       />
 
-      <form onSubmit={onSubmit} noValidate className="space-y-6">
+      {company && <CompanyTabs company={company} tab={tab} onChange={setTab} />}
+
+      {company && tab === 'users' && <CompanyUsersPanel company={company} asAdmin />}
+      {company && tab === 'staff' && <AssignedStaffPanel company={company} />}
+      {company && tab === 'support' && <SupportPanel company={company} />}
+
+      <form onSubmit={onSubmit} noValidate className={tab === 'details' ? 'space-y-6' : 'hidden'}>
         {formError && <Alert tone="error">{formError}</Alert>}
         {success && <Alert tone="success">{t(success)}</Alert>}
         {company?.status === 'closed' && <Alert tone="info">{t('companyForm.closedNotice')}</Alert>}

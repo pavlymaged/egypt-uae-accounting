@@ -7,9 +7,12 @@ import { ChooseCompanyPage } from './pages/auth/ChooseCompanyPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { MfaSetupPage, MfaVerifyPage } from './pages/auth/MfaPages';
-import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
+import { SetPasswordPage } from './pages/auth/SetPasswordPage';
 import { CompaniesListPage } from './pages/companies/CompaniesListPage';
 import { CompanyFormPage } from './pages/companies/CompanyFormPage';
+import { OwnerUsersPage } from './pages/companies/OwnerUsersPage';
+import { AuditPage } from './pages/audit/AuditPage';
+import { SupportSessionsPage } from './pages/support/SupportSessionsPage';
 import { CompanyHome, StaffDashboard } from './pages/HomePages';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { StaffEditPage } from './pages/staff/StaffEditPage';
@@ -49,7 +52,8 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         </Route>
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/set-password" element={<SetPasswordPage />} />
+        <Route path="/reset-password" element={<SetPasswordPage />} />
         <Route path="/mfa/setup" element={<MfaSetupRoute />} />
         <Route path="/mfa/verify" element={<MfaVerifyRoute />} />
         <Route path="/choose-company" element={<RequireCompanyChoice><ChooseCompanyPage /></RequireCompanyChoice>} />
@@ -63,6 +67,10 @@ export default function App() {
             <Route path="my-companies" element={<StaffGate admin={false}><CompaniesListPage mode="mine" /></StaffGate>} />
             <Route path="staff" element={<StaffGate admin><StaffListPage /></StaffGate>} />
             <Route path="staff/:id" element={<StaffGate admin><StaffEditPage /></StaffGate>} />
+            <Route path="support-sessions" element={<StaffGate admin><SupportSessionsPage /></StaffGate>} />
+            <Route path="audit" element={<StaffGate admin><AuditPage mode="all" /></StaffGate>} />
+            <Route path="users" element={<OwnerUsersPage />} />
+            <Route path="activity" element={<AuditPage mode="company" />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>

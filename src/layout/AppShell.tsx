@@ -1,4 +1,4 @@
-import { Briefcase, Building2, Home, LayoutDashboard, LogOut, Menu, Repeat, Users, X } from 'lucide-react';
+import { Briefcase, Building2, History, Home, LayoutDashboard, LifeBuoy, LogOut, Menu, Repeat, ScrollText, UserCog, Users, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/SessionProvider';
@@ -6,6 +6,8 @@ import { LanguageSwitch } from '../components/LanguageSwitch';
 import type { TranslationKey } from '../i18n/en';
 import { useI18n } from '../i18n/I18nProvider';
 import { Brand } from '../pages/auth/AuthLayout';
+import { SupportBanner } from '../support/SupportBanner';
+import { SupportSessionProvider } from '../support/SupportSessionProvider';
 import { isPlatformAdmin } from '../types';
 
 interface NavItem {
@@ -15,13 +17,15 @@ interface NavItem {
 }
 
 function useNavItems(): NavItem[] {
-  const { identity } = useSession();
+  const { identity, activeCompany } = useSession();
   if (identity?.kind === 'staff') {
     if (isPlatformAdmin(identity.staff.staff_role)) {
       return [
         { to: '/', label: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
         { to: '/companies', label: 'nav.companies', icon: <Building2 className="h-5 w-5" /> },
         { to: '/staff', label: 'nav.staff', icon: <Users className="h-5 w-5" /> },
+        { to: '/support-sessions', label: 'nav.support', icon: <LifeBuoy className="h-5 w-5" /> },
+        { to: '/audit', label: 'nav.audit', icon: <ScrollText className="h-5 w-5" /> },
       ];
     }
     return [
@@ -29,7 +33,15 @@ function useNavItems(): NavItem[] {
       { to: '/my-companies', label: 'nav.myCompanies', icon: <Briefcase className="h-5 w-5" /> },
     ];
   }
-  return [{ to: '/', label: 'nav.home', icon: <Home className="h-5 w-5" /> }];
+  const home: NavItem = { to: '/', label: 'nav.home', icon: <Home className="h-5 w-5" /> };
+  if (activeCompany?.role === 'owner') {
+    return [
+      home,
+      { to: '/users', label: 'nav.users', icon: <UserCog className="h-5 w-5" /> },
+      { to: '/activity', label: 'nav.activity', icon: <History className="h-5 w-5" /> },
+    ];
+  }
+  return [home];
 }
 
 function useBadge(): { primary: string; secondary: string } | null {
@@ -118,6 +130,7 @@ export function AppShell() {
   }, [open]);
 
   return (
+    <SupportSessionProvider>
     <div className="min-h-screen bg-ink-50">
       <aside className="fixed inset-y-0 start-0 z-30 hidden w-64 border-e border-ink-200 bg-white lg:block">
         <Sidebar />
@@ -173,10 +186,12 @@ export function AppShell() {
             <LanguageSwitch />
           </div>
         </header>
+        <SupportBanner />
         <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           <Outlet />
         </main>
       </div>
     </div>
+    </SupportSessionProvider>
   );
 }

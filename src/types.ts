@@ -54,6 +54,47 @@ export interface CompanyMembership {
   company: Pick<Company, 'id' | 'code' | 'name' | 'status'>;
 }
 
+export const PERMISSIONS = [
+  'can_record',
+  'can_post',
+  'can_manage_vendors',
+  'can_edit_quotations',
+  'can_review_claims',
+  'can_view_reports',
+  'can_view_cash',
+  'can_export',
+] as const;
+export type Permission = (typeof PERMISSIONS)[number];
+
+export interface CompanyUser extends Record<Permission, boolean> {
+  company_id: string;
+  user_id: string;
+  full_name: string;
+  email: string;
+  role: CompanyRole;
+  is_active: boolean;
+}
+
+export const COMPANY_USER_COLUMNS = `company_id, user_id, full_name, email, role, is_active, ${PERMISSIONS.join(', ')}`;
+
+export interface SupportSession {
+  id: string;
+  staff_user_id: string;
+  company_id: string;
+  reason: string;
+  mode: 'read' | 'edit';
+  edit_reason: string | null;
+  opened_at: string;
+  expires_at: string;
+  closed_at: string | null;
+}
+
+export const SUPPORT_COLUMNS = 'id, staff_user_id, company_id, reason, mode, edit_reason, opened_at, expires_at, closed_at';
+
+export function isSessionOpen(s: Pick<SupportSession, 'closed_at' | 'expires_at'>, now = Date.now()): boolean {
+  return !s.closed_at && new Date(s.expires_at).getTime() > now;
+}
+
 export const COMPANY_COLUMNS =
   'id, code, name, service_model, status, base_currency, monthly_service_fee::text, service_fee_currency, owner_name, owner_email';
 

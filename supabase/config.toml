@@ -1,0 +1,5 @@
+[functions.invite-staff]
+verify_jwt = true
+
+[functions.invite-company-user]
+verify_jwt = true
