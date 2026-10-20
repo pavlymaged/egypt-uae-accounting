@@ -2,14 +2,19 @@ import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js';
 import type { TranslationKey } from '../i18n/en';
 import { supabase } from './supabase';
 
-export type InviteResult =
-  | { ok: true; userId: string }
-  | { ok: false; code: string; field?: string; message?: string };
+export type AccessMethod = 'temporary_password' | 'invite';
 
-export async function sendInvite(fn: 'invite-staff' | 'invite-company-user', body: Record<string, unknown>): Promise<InviteResult> {
-  const { data, error } = await supabase.functions.invoke(fn, {
-    body: { ...body, redirect_to: `${window.location.origin}/set-password` },
-  });
+type Failure = { ok: false; code: string; field?: string; message?: string };
+type CallResult = { ok: true; data: Record<string, unknown> } | Failure;
+
+export type InviteResult = { ok: true; userId: string; temporaryPassword: string | null } | Failure;
+export type ResetResult = { ok: true; temporaryPassword: string } | Failure;
+export type ChangeResult = { ok: true } | Failure;
+
+type FunctionName = 'invite-staff' | 'invite-company-user' | 'reset-temporary-password' | 'change-initial-password';
+
+async function callFunction(fn: FunctionName, body: Record<string, unknown>): Promise<CallResult> {
+  const { data, error } = await supabase.functions.invoke(fn, { body });
 
   if (error) {
     if (error instanceof FunctionsFetchError) return { ok: false, code: 'network' };
@@ -32,10 +37,41 @@ export async function sendInvite(fn: 'invite-staff' | 'invite-company-user', bod
     return { ok: false, code: 'unexpected' };
   }
 
-  if (data && typeof data === 'object' && typeof (data as { user_id?: unknown }).user_id === 'string') {
-    return { ok: true, userId: (data as { user_id: string }).user_id };
-  }
+  if (data && typeof data === 'object') return { ok: true, data: data as Record<string, unknown> };
   return { ok: false, code: 'unexpected' };
+}
+
+export async function sendInvite(
+  fn: 'invite-staff' | 'invite-company-user',
+  method: AccessMethod,
+  body: Record<string, unknown>,
+): Promise<InviteResult> {
+  const result = await callFunction(fn, {
+    ...body,
+    method,
+    redirect_to: method === 'invite' ? `${window.location.origin}/set-password` : undefined,
+  });
+  if (!result.ok) return result;
+  const { user_id: userId, temporary_password: password } = result.data;
+  if (typeof userId !== 'string') return { ok: false, code: 'unexpected' };
+  if (method === 'temporary_password') {
+    if (typeof password !== 'string') return { ok: false, code: 'unexpected' };
+    return { ok: true, userId, temporaryPassword: password };
+  }
+  return { ok: true, userId, temporaryPassword: null };
+}
+
+export async function resetTemporaryPassword(userId: string): Promise<ResetResult> {
+  const result = await callFunction('reset-temporary-password', { user_id: userId });
+  if (!result.ok) return result;
+  const password = result.data.temporary_password;
+  return typeof password === 'string' ? { ok: true, temporaryPassword: password } : { ok: false, code: 'unexpected' };
+}
+
+export async function changeInitialPassword(newPassword: string): Promise<ChangeResult> {
+  const result = await callFunction('change-initial-password', { new_password: newPassword });
+  if (!result.ok) return result;
+  return result.data.ok === true ? { ok: true } : { ok: false, code: 'unexpected' };
 }
 
 export interface InviteProblem {
@@ -44,7 +80,7 @@ export interface InviteProblem {
   vars?: Record<string, string>;
 }
 
-export function describeInviteFailure(result: Extract<InviteResult, { ok: false }>): InviteProblem {
+export function describeInviteFailure(result: Failure): InviteProblem {
   switch (result.code) {
     case 'email_exists':
       return { field: 'email', key: 'invite.emailExists' };
@@ -64,6 +100,8 @@ export function describeInviteFailure(result: Extract<InviteResult, { ok: false 
       return { field: null, key: 'invite.saveFailed', vars: { msg: result.message ?? '' } };
     case 'invite_failed':
       return { field: null, key: 'invite.sendFailed' };
+    case 'create_failed':
+      return { field: null, key: 'invite.createFailed' };
     default:
       return { field: null, key: 'common.unexpected' };
   }

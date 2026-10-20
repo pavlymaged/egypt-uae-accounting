@@ -9,7 +9,7 @@ export type Identity =
   | { kind: 'company'; memberships: CompanyMembership[] }
   | { kind: 'error' };
 
-type Status = 'loading' | 'signedOut' | 'ready';
+type Status = 'loading' | 'signedOut' | 'mustChangePassword' | 'ready';
 
 interface SessionValue {
   status: Status;
@@ -22,10 +22,15 @@ interface SessionValue {
   chooseCompany: (companyId: string) => void;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
+  finishPasswordChange: () => Promise<void>;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
 const COMPANY_KEY = 'thalatha.activeCompany';
+
+function mustChangePassword(session: Session): boolean {
+  return session.user.app_metadata?.must_change_password === true;
+}
 
 async function resolveIdentity(userId: string): Promise<Identity | 'disabled' | 'noAccess'> {
   const staffRes = await supabase.from('staff_members').select(STAFF_COLUMNS).eq('user_id', userId).maybeSingle();
@@ -78,6 +83,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setStatus('signedOut');
       return;
     }
+    if (mustChangePassword(current)) {
+      setIdentity(null);
+      setStatus('mustChangePassword');
+      return;
+    }
     const result = await resolveIdentity(current.user.id);
     if (result === 'disabled' || result === 'noAccess') {
       setNotice(result === 'disabled' ? 'identity.disabled' : 'identity.noAccess');
@@ -97,7 +107,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (event === 'PASSWORD_RECOVERY') setRecovery(true);
       if (event === 'SIGNED_OUT') setRecovery(false);
       const userId = next?.user.id ?? null;
-      const forceReload = event === 'INITIAL_SESSION' || event === 'MFA_CHALLENGE_VERIFIED';
+      const forceReload =
+        event === 'INITIAL_SESSION' || event === 'MFA_CHALLENGE_VERIFIED' || (next !== null && mustChangePassword(next));
       if (userId !== null && resolvedFor.current === userId && !forceReload) {
         setSession(next);
         return;
@@ -119,6 +130,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(COMPANY_KEY);
     setActiveCompanyId(null);
     await supabase.auth.signOut({ scope: 'local' });
+  }, []);
+
+  const finishPasswordChange = useCallback(async () => {
+    sessionStorage.removeItem(COMPANY_KEY);
+    setActiveCompanyId(null);
+    await supabase.auth.signOut({ scope: 'local' });
+    setNotice('firstpw.changed');
   }, []);
 
   const chooseCompany = useCallback((companyId: string) => {
@@ -144,8 +162,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       chooseCompany,
       refresh,
       signOut,
+      finishPasswordChange,
     }),
-    [status, session, identity, notice, recovery, activeCompany, chooseCompany, refresh, signOut],
+    [status, session, identity, notice, recovery, activeCompany, chooseCompany, refresh, signOut, finishPasswordChange],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

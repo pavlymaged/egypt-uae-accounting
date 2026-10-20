@@ -19,12 +19,26 @@ const SWITCHES = [
 ] as const;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
 
 function reply(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
+}
+
+function generatePassword(length = 16): string {
+  const limit = 256 - (256 % ALPHABET.length);
+  const out: string[] = [];
+  const buf = new Uint8Array(32);
+  while (out.length < length) {
+    crypto.getRandomValues(buf);
+    for (const b of buf) {
+      if (b < limit && out.length < length) out.push(ALPHABET[b % ALPHABET.length]);
+    }
+  }
+  return out.join("");
 }
 
 function fail(status: number, code: string, message: string, field?: string) {
@@ -56,8 +70,12 @@ Deno.serve(async (req: Request) => {
     const fullName = typeof body.full_name === "string" ? body.full_name.trim() : "";
     const role = typeof body.role === "string" ? body.role : "";
     const redirectTo = typeof body.redirect_to === "string" ? body.redirect_to : undefined;
+    const method = body.method === undefined ? "invite" : body.method;
 
     if (!UUID_RE.test(companyId)) return fail(404, "not_found", "Not found");
+    if (method !== "invite" && method !== "temporary_password") {
+      return fail(400, "invalid_method", "Access method: choose one of the listed options.");
+    }
     if (!email || !EMAIL_RE.test(email) || email.length > 320) {
       return fail(400, "invalid_email", "Email: enter a valid email address, like name@example.com.", "email");
     }
@@ -87,18 +105,29 @@ Deno.serve(async (req: Request) => {
     });
     if (checkError || allowed !== true) return fail(404, "not_found", "Not found");
 
-    const { data: invited, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
-      redirectTo,
-      data: { full_name: fullName },
-    });
-    if (inviteError || !invited?.user) {
-      if (inviteError && isExistingAccount(inviteError)) {
+    const temporaryPassword = method === "temporary_password" ? generatePassword() : null;
+    const { data: created, error: createError } = temporaryPassword
+      ? await adminClient.auth.admin.createUser({
+        email,
+        password: temporaryPassword,
+        email_confirm: true,
+        user_metadata: { full_name: fullName },
+        app_metadata: { must_change_password: true },
+      })
+      : await adminClient.auth.admin.inviteUserByEmail(email, {
+        redirectTo,
+        data: { full_name: fullName },
+      });
+    if (createError || !created?.user) {
+      if (createError && isExistingAccount(createError)) {
         return fail(409, "email_exists", "This email already has an account. Adding existing accounts is not available yet.", "email");
       }
-      return fail(502, "invite_failed", "The invitation could not be sent. Please try again.");
+      return temporaryPassword
+        ? fail(502, "create_failed", "The login could not be created. Please try again.")
+        : fail(502, "invite_failed", "The invitation could not be sent. Please try again.");
     }
 
-    const userId = invited.user.id;
+    const userId = created.user.id;
     const { error: insertError } = await userClient.from("company_users").insert({
       company_id: companyId,
       user_id: userId,
@@ -113,7 +142,7 @@ Deno.serve(async (req: Request) => {
       return fail(400, "insert_failed", `The user record could not be saved: ${insertError.message}`);
     }
 
-    return reply(200, { user_id: userId });
+    return reply(200, temporaryPassword ? { user_id: userId, temporary_password: temporaryPassword } : { user_id: userId });
   } catch {
     return fail(500, "unexpected", "Something went wrong. Please try again.");
   }

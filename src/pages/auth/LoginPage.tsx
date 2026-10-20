@@ -52,7 +52,7 @@ export function LoginPage() {
     >
       <form onSubmit={onSubmit} noValidate className="space-y-5">
         {notice && (
-          <Alert tone={notice === 'identity.disabled' ? 'error' : 'warning'}>
+          <Alert tone={notice === 'identity.disabled' ? 'error' : notice === 'firstpw.changed' ? 'success' : 'warning'}>
             <p className="font-medium">{t(notice)}</p>
             {notice === 'identity.disabled' && <p>{t('identity.disabledBody')}</p>}
           </Alert>

@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { AccessMethodChoice } from '../../components/access/AccessMethodChoice';
+import type { SharedCredentials } from '../../components/access/ShareCredentialsDialog';
 import { Alert } from '../../components/ui/Feedback';
 import { Field, SelectInput, TextInput } from '../../components/ui/Field';
 import { Modal } from '../../components/ui/Modal';
 import { useI18n } from '../../i18n/I18nProvider';
-import { describeInviteFailure, sendInvite } from '../../lib/invite';
+import { describeInviteFailure, sendInvite, type AccessMethod } from '../../lib/invite';
 import type { StaffRole } from '../../types';
 import { EMAIL_RE } from '../auth/LoginPage';
 
@@ -12,17 +14,19 @@ interface Props {
   roles: readonly StaffRole[];
   onClose: () => void;
   onInvited: (email: string) => void;
+  onCreated: (credentials: SharedCredentials) => void;
 }
 
 type Errors = Partial<Record<'full_name' | 'email' | 'role' | 'joining_date', string>>;
 
-export function AddStaffDialog({ open, roles, onClose, onInvited }: Props) {
+export function AddStaffDialog({ open, roles, onClose, onInvited, onCreated }: Props) {
   const { t } = useI18n();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<StaffRole | ''>('');
   const [position, setPosition] = useState('');
   const [joining, setJoining] = useState('');
+  const [method, setMethod] = useState<AccessMethod>('temporary_password');
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,6 +37,7 @@ export function AddStaffDialog({ open, roles, onClose, onInvited }: Props) {
     setRole('');
     setPosition('');
     setJoining('');
+    setMethod('temporary_password');
     setErrors({});
     setFormError(null);
   }
@@ -55,7 +60,7 @@ export function AddStaffDialog({ open, roles, onClose, onInvited }: Props) {
     if (Object.values(next).some(Boolean)) return;
 
     setBusy(true);
-    const result = await sendInvite('invite-staff', {
+    const result = await sendInvite('invite-staff', method, {
       email: cleanEmail,
       full_name: name,
       staff_role: role,
@@ -66,7 +71,8 @@ export function AddStaffDialog({ open, roles, onClose, onInvited }: Props) {
 
     if (result.ok) {
       reset();
-      onInvited(cleanEmail);
+      if (result.temporaryPassword) onCreated({ email: cleanEmail, password: result.temporaryPassword });
+      else onInvited(cleanEmail);
       return;
     }
     const problem = describeInviteFailure(result);
@@ -79,8 +85,8 @@ export function AddStaffDialog({ open, roles, onClose, onInvited }: Props) {
     <Modal
       open={open}
       title={t('invite.staffTitle')}
-      description={t('invite.staffBody')}
-      submitLabel={t('invite.send')}
+      description={t(method === 'invite' ? 'invite.staffBody' : 'invite.staffBodyTemp')}
+      submitLabel={t(method === 'invite' ? 'invite.send' : 'invite.create')}
       busy={busy}
       onSubmit={() => void submit()}
       onClose={close}
@@ -110,6 +116,7 @@ export function AddStaffDialog({ open, roles, onClose, onInvited }: Props) {
           {(id, d, invalid) => <TextInput id={id} type="date" dir="ltr" value={joining} onChange={(e) => setJoining(e.target.value)} aria-describedby={d} invalid={invalid} />}
         </Field>
       </div>
+      <AccessMethodChoice value={method} onChange={setMethod} />
     </Modal>
   );
 }

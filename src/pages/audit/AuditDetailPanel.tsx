@@ -5,10 +5,11 @@ import { useI18n } from '../../i18n/I18nProvider';
 import { formatDateTime } from '../../lib/dates';
 import { actionLabel, changesOf, entityLabel, fieldLabel, formatValue, recordName, type AuditEntry } from './auditFormat';
 
-export const ACTION_TONE: Record<string, 'success' | 'sky' | 'danger' | 'neutral'> = {
+export const ACTION_TONE: Record<string, 'success' | 'sky' | 'danger' | 'gold' | 'neutral'> = {
   insert: 'success',
   update: 'sky',
   delete: 'danger',
+  password_reset: 'gold',
 };
 
 export function AuditDetailPanel({ entry, onClose }: { entry: AuditEntry | null; onClose: () => void }) {

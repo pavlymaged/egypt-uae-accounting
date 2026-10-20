@@ -17,7 +17,7 @@ export interface AuditEntry {
   details: { new?: Record<string, unknown>; old?: Record<string, unknown> } | null;
 }
 
-export const AUDIT_ACTIONS = ['insert', 'update', 'delete'] as const;
+export const AUDIT_ACTIONS = ['insert', 'update', 'delete', 'password_reset'] as const;
 
 export const AUDIT_ENTITIES = [
   'companies',
@@ -26,6 +26,7 @@ export const AUDIT_ENTITIES = [
   'staff_hr_details',
   'staff_assignments',
   'support_sessions',
+  'user',
 ] as const;
 
 type T = (key: TranslationKey, vars?: Record<string, string | number>) => string;

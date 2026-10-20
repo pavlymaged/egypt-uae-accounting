@@ -4,6 +4,7 @@ import { PublicOnly, RequireApp, RequireCompanyChoice, RequirePendingMfa } from 
 import { useSession, useStaff } from './auth/SessionProvider';
 import { AppShell } from './layout/AppShell';
 import { ChooseCompanyPage } from './pages/auth/ChooseCompanyPage';
+import { ChoosePasswordPage } from './pages/auth/ChoosePasswordPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { MfaSetupPage, MfaVerifyPage } from './pages/auth/MfaPages';
@@ -47,7 +48,22 @@ function MfaVerifyRoute() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
+      <PasswordChangeGate>
+        <AppRoutes />
+      </PasswordChangeGate>
+    </BrowserRouter>
+  );
+}
+
+function PasswordChangeGate({ children }: { children: ReactNode }) {
+  const { status } = useSession();
+  if (status === 'mustChangePassword') return <ChoosePasswordPage />;
+  return <>{children}</>;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
         <Route element={<PublicOnly />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -75,6 +91,5 @@ export default function App() {
           </Route>
         </Route>
       </Routes>
-    </BrowserRouter>
   );
 }

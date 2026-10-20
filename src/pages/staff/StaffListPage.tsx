@@ -10,6 +10,7 @@ import { formatDate } from '../../lib/dates';
 import { supabase } from '../../lib/supabase';
 import { STAFF_COLUMNS, STAFF_ROLES, type StaffMember, type StaffRole } from '../../types';
 import { AddStaffDialog } from './AddStaffDialog';
+import { ShareCredentialsDialog, type SharedCredentials } from '../../components/access/ShareCredentialsDialog';
 
 const roleTones = { super_admin: 'gold', accounting_manager: 'brand', checker: 'sky', accountant: 'neutral' } as const;
 
@@ -33,6 +34,7 @@ export function StaffListPage() {
   const me = useStaff();
   const [adding, setAdding] = useState(false);
   const [invited, setInvited] = useState<string | null>(null);
+  const [credentials, setCredentials] = useState<SharedCredentials | null>(null);
   const invitableRoles: readonly StaffRole[] = me?.staff_role === 'super_admin' ? STAFF_ROLES : ['checker', 'accountant'];
 
   useEffect(() => {
@@ -73,7 +75,7 @@ export function StaffListPage() {
 
       {invited && (
         <div className="mb-4">
-          <Alert tone="success">{t('invite.sent', { email: invited })}</Alert>
+          <Alert tone="success">{invited}</Alert>
         </div>
       )}
 
@@ -83,10 +85,17 @@ export function StaffListPage() {
         onClose={() => setAdding(false)}
         onInvited={(email) => {
           setAdding(false);
-          setInvited(email);
+          setInvited(t('invite.sent', { email }));
+          setAttempt((a) => a + 1);
+        }}
+        onCreated={(creds) => {
+          setAdding(false);
+          setInvited(t('invite.created', { email: creds.email }));
+          setCredentials(creds);
           setAttempt((a) => a + 1);
         }}
       />
+      <ShareCredentialsDialog credentials={credentials} onClose={() => setCredentials(null)} />
 
       {failed && (
         <Alert tone="error" action={<Button variant="secondary" onClick={() => setAttempt((a) => a + 1)}>{t('common.retry')}</Button>}>

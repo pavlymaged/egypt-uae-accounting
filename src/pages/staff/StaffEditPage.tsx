@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { useStaff } from '../../auth/SessionProvider';
+import { ResetPasswordAction } from '../../components/access/ResetPasswordAction';
 import { BackLink } from '../../components/ui/BackLink';
 import { Button } from '../../components/ui/Button';
 import { Alert, FormSection, PageHeader, Spinner } from '../../components/ui/Feedback';
@@ -64,9 +65,10 @@ export function StaffEditPage() {
         title={member.full_name}
         subtitle={member.email}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StaffRoleBadge role={member.staff_role} />
             <ActiveBadge active={member.is_active} />
+            {member.user_id !== me.user_id && <ResetPasswordAction userId={member.user_id} name={member.full_name} email={member.email} />}
           </div>
         }
       />

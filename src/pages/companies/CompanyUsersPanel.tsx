@@ -1,6 +1,8 @@
 import { Pencil, UserPlus, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSession } from '../../auth/SessionProvider';
+import { ResetPasswordAction } from '../../components/access/ResetPasswordAction';
+import { ShareCredentialsDialog, type SharedCredentials } from '../../components/access/ShareCredentialsDialog';
 import { Button } from '../../components/ui/Button';
 import { Alert, Badge, Card, EmptyState, Spinner } from '../../components/ui/Feedback';
 import { useI18n } from '../../i18n/I18nProvider';
@@ -23,6 +25,7 @@ export function CompanyUsersPanel({ company, asAdmin }: Props) {
   const [attempt, setAttempt] = useState(0);
   const [dialog, setDialog] = useState<{ editing: CompanyUser | null } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [credentials, setCredentials] = useState<SharedCredentials | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,11 +99,14 @@ export function CompanyUsersPanel({ company, asAdmin }: Props) {
                     <p dir="ltr" className="truncate text-xs text-ink-500 rtl:text-end">{u.email}</p>
                     <div className="flex flex-wrap gap-1.5 pt-1">{chips(u)}</div>
                   </div>
-                  {canEdit(u) && (
-                    <Button variant="secondary" icon={<Pencil className="h-4 w-4" />} onClick={() => { setNotice(null); setDialog({ editing: u }); }}>
-                      {t('common.edit')}
-                    </Button>
-                  )}
+                  <div className="flex flex-wrap items-start gap-2">
+                    {u.user_id !== myId && <ResetPasswordAction userId={u.user_id} name={u.full_name} email={u.email} />}
+                    {canEdit(u) && (
+                      <Button variant="secondary" icon={<Pencil className="h-4 w-4" />} onClick={() => { setNotice(null); setDialog({ editing: u }); }}>
+                        {t('common.edit')}
+                      </Button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -120,12 +126,19 @@ export function CompanyUsersPanel({ company, asAdmin }: Props) {
           setNotice(t('invite.sent', { email }));
           setAttempt((a) => a + 1);
         }}
+        onCreated={(creds) => {
+          setDialog(null);
+          setNotice(t('invite.created', { email: creds.email }));
+          setCredentials(creds);
+          setAttempt((a) => a + 1);
+        }}
         onSaved={(saved) => {
           setDialog(null);
           setNotice(t('cusers.saved', { name: saved.full_name }));
           setUsers((list) => list?.map((x) => (x.user_id === saved.user_id ? saved : x)) ?? null);
         }}
       />
+      <ShareCredentialsDialog credentials={credentials} onClose={() => setCredentials(null)} />
     </div>
   );
 }
