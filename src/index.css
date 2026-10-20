@@ -1,3 +1,21 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    @apply font-sans text-ink-900 antialiased;
+  }
+  html[lang='ar'] {
+    @apply font-arabic;
+  }
+  body {
+    @apply bg-ink-50;
+    line-height: 1.5;
+  }
+  h1,
+  h2,
+  h3 {
+    line-height: 1.2;
+  }
+}
