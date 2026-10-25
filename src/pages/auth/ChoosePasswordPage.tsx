@@ -19,6 +19,7 @@ export function ChoosePasswordPage() {
   const [errors, setErrors] = useState<{ password?: TranslationKey; confirm?: TranslationKey }>({});
   const [formError, setFormError] = useState<TranslationKey | null>(null);
   const [saving, setSaving] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -30,20 +31,33 @@ export function ChoosePasswordPage() {
     setErrors(next);
     if (next.password || next.confirm) return;
 
-    setSaving(true);
-    const result = await changeInitialPassword(password);
-    if (result.ok) {
-      setPassword('');
-      setConfirm('');
-      await finishPasswordChange();
+    const token = session?.access_token;
+    if (!token) {
+      setFormError('firstpw.failed');
       return;
     }
-    setSaving(false);
-    if (result.code === 'weak_password') setErrors({ password: 'reset.weak' });
-    else if (result.code === 'same_password') setErrors({ password: 'firstpw.same' });
-    else if (result.code === 'invalid_password') setErrors({ password: 'reset.passwordShort' });
-    else if (result.code === 'network') setFormError('common.networkError');
-    else setFormError('firstpw.failed');
+
+    setSaving(true);
+    let changed = false;
+    try {
+      const result = await changeInitialPassword(password, token);
+      if (result.ok) {
+        changed = true;
+        setLeaving(true);
+        setPassword('');
+        setConfirm('');
+      } else if (result.code === 'weak_password') setErrors({ password: 'reset.weak' });
+      else if (result.code === 'same_password') setErrors({ password: 'firstpw.same' });
+      else if (result.code === 'invalid_password') setErrors({ password: 'reset.passwordShort' });
+      else if (result.code === 'timeout') setFormError('firstpw.timeout');
+      else if (result.code === 'network') setFormError('common.networkError');
+      else setFormError('firstpw.failed');
+    } catch {
+      setFormError('firstpw.failed');
+    } finally {
+      setSaving(false);
+    }
+    if (changed) await finishPasswordChange();
   }
 
   return (
@@ -80,7 +94,7 @@ export function ChoosePasswordPage() {
             />
           )}
         </Field>
-        <Button type="submit" full loading={saving}>
+        <Button type="submit" full loading={saving || leaving}>
           {t('firstpw.submit')}
         </Button>
         <button type="button" onClick={() => void signOut()} className="w-full text-center text-sm font-medium text-ink-500 hover:text-ink-800">

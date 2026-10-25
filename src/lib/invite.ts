@@ -1,6 +1,6 @@
 import { FunctionsFetchError, FunctionsHttpError } from '@supabase/supabase-js';
 import type { TranslationKey } from '../i18n/en';
-import { supabase } from './supabase';
+import { supabase, supabaseAnonKey, supabaseUrl } from './supabase';
 
 export type AccessMethod = 'temporary_password' | 'invite';
 
@@ -68,10 +68,36 @@ export async function resetTemporaryPassword(userId: string): Promise<ResetResul
   return typeof password === 'string' ? { ok: true, temporaryPassword: password } : { ok: false, code: 'unexpected' };
 }
 
-export async function changeInitialPassword(newPassword: string): Promise<ChangeResult> {
-  const result = await callFunction('change-initial-password', { new_password: newPassword });
-  if (!result.ok) return result;
-  return result.data.ok === true ? { ok: true } : { ok: false, code: 'unexpected' };
+const CHANGE_TIMEOUT_MS = 20_000;
+
+// Direct fetch: functions.invoke cannot be aborted in this library version and waits on the auth lock first.
+export async function changeInitialPassword(newPassword: string, accessToken: string): Promise<ChangeResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CHANGE_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/change-initial-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        apikey: supabaseAnonKey,
+      },
+      body: JSON.stringify({ new_password: newPassword }),
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    const payload = (await res.json().catch(() => null)) as
+      | { ok?: unknown; error?: { code?: unknown } }
+      | null;
+    if (res.ok) return payload?.ok === true ? { ok: true } : { ok: false, code: 'unexpected' };
+    const code = payload?.error?.code;
+    return { ok: false, code: typeof code === 'string' ? code : 'unexpected' };
+  } catch (err) {
+    if (controller.signal.aborted) return { ok: false, code: 'timeout' };
+    return { ok: false, code: err instanceof TypeError ? 'network' : 'unexpected' };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export interface InviteProblem {

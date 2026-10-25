@@ -286,6 +286,7 @@ export const en = {
   'firstpw.tooLong': 'New password: use at most 72 characters.',
   'firstpw.same': 'New password: choose a password different from the temporary one.',
   'firstpw.failed': 'Your password could not be changed. Please try again.',
+  'firstpw.timeout': 'The server took too long to answer (over 20 seconds). Please try again. If it keeps happening, sign out and try signing in with your new password, because it may already have been saved.',
   'firstpw.changed': 'Your password was changed. Please sign in with your new password.',
   'preset.label': 'Permission preset',
   'preset.viewer': 'Viewer',

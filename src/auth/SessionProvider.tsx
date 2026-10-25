@@ -27,6 +27,20 @@ interface SessionValue {
 
 const SessionContext = createContext<SessionValue | null>(null);
 const COMPANY_KEY = 'thalatha.activeCompany';
+const NOTICE_KEY = 'thalatha.notice';
+const SIGN_OUT_CAP_MS = 3_000;
+
+function takeStoredNotice(): TranslationKey | null {
+  const stored = sessionStorage.getItem(NOTICE_KEY);
+  sessionStorage.removeItem(NOTICE_KEY);
+  return stored === 'firstpw.changed' ? stored : null;
+}
+
+function clearStoredAuthTokens() {
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith('sb-') && key.endsWith('-auth-token')) localStorage.removeItem(key);
+  }
+}
 
 function mustChangePassword(session: Session): boolean {
   return session.user.app_metadata?.must_change_password === true;
@@ -70,7 +84,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<Status>('loading');
   const [session, setSession] = useState<Session | null>(null);
   const [identity, setIdentity] = useState<Identity | null>(null);
-  const [notice, setNotice] = useState<TranslationKey | null>(null);
+  const [notice, setNotice] = useState<TranslationKey | null>(takeStoredNotice);
   const [recovery, setRecovery] = useState(false);
   const [activeCompanyId, setActiveCompanyId] = useState<string | null>(() => sessionStorage.getItem(COMPANY_KEY));
   const resolvedFor = useRef<string | null>(null);
@@ -114,9 +128,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         return;
       }
       resolvedFor.current = userId;
-      (async () => {
-        await load(next);
-      })();
+      // Supabase calls made inside this callback can deadlock the auth lock, so run them after it returns.
+      setTimeout(() => {
+        void load(next);
+      }, 0);
     });
     return () => data.subscription.unsubscribe();
   }, [load]);
@@ -134,9 +149,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const finishPasswordChange = useCallback(async () => {
     sessionStorage.removeItem(COMPANY_KEY);
-    setActiveCompanyId(null);
-    await supabase.auth.signOut({ scope: 'local' });
-    setNotice('firstpw.changed');
+    const signedOut = await Promise.race([
+      supabase.auth.signOut({ scope: 'local' }).then(({ error }) => !error, () => false),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), SIGN_OUT_CAP_MS)),
+    ]);
+    if (!signedOut) clearStoredAuthTokens();
+    sessionStorage.setItem(NOTICE_KEY, 'firstpw.changed');
+    window.location.replace('/login');
   }, []);
 
   const chooseCompany = useCallback((companyId: string) => {
