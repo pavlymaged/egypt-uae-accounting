@@ -16,6 +16,7 @@ import { AuditPage } from './pages/audit/AuditPage';
 import { SupportSessionsPage } from './pages/support/SupportSessionsPage';
 import { CompanyHome, StaffDashboard } from './pages/HomePages';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { ReferencePage } from './pages/reference/ReferencePage';
 import { StaffEditPage } from './pages/staff/StaffEditPage';
 import { StaffListPage } from './pages/staff/StaffListPage';
 import { isPlatformAdmin } from './types';
@@ -23,6 +24,11 @@ import { isPlatformAdmin } from './types';
 function StaffGate({ admin, children }: { admin: boolean; children: ReactNode }) {
   const staff = useStaff();
   if (!staff || isPlatformAdmin(staff.staff_role) !== admin) return <NotFoundPage />;
+  return <>{children}</>;
+}
+
+function AnyStaffGate({ children }: { children: ReactNode }) {
+  if (!useStaff()) return <NotFoundPage />;
   return <>{children}</>;
 }
 
@@ -84,6 +90,7 @@ function AppRoutes() {
             <Route path="staff" element={<StaffGate admin><StaffListPage /></StaffGate>} />
             <Route path="staff/:id" element={<StaffGate admin><StaffEditPage /></StaffGate>} />
             <Route path="support-sessions" element={<StaffGate admin><SupportSessionsPage /></StaffGate>} />
+            <Route path="reference" element={<AnyStaffGate><ReferencePage /></AnyStaffGate>} />
             <Route path="audit" element={<StaffGate admin><AuditPage mode="all" /></StaffGate>} />
             <Route path="users" element={<OwnerUsersPage />} />
             <Route path="activity" element={<AuditPage mode="company" />} />

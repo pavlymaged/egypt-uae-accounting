@@ -27,6 +27,8 @@ export const AUDIT_ENTITIES = [
   'staff_assignments',
   'support_sessions',
   'user',
+  'item_codes',
+  'fee_table',
 ] as const;
 
 type T = (key: TranslationKey, vars?: Record<string, string | number>) => string;

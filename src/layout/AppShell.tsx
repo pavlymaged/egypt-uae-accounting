@@ -1,4 +1,4 @@
-import { Briefcase, Building2, History, Home, LayoutDashboard, LifeBuoy, LogOut, Menu, Repeat, ScrollText, UserCog, Users, X } from 'lucide-react';
+import { BookOpen, Briefcase, Building2, History, Home, LayoutDashboard, LifeBuoy, LogOut, Menu, Repeat, ScrollText, UserCog, Users, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/SessionProvider';
@@ -25,12 +25,14 @@ function useNavItems(): NavItem[] {
         { to: '/companies', label: 'nav.companies', icon: <Building2 className="h-5 w-5" /> },
         { to: '/staff', label: 'nav.staff', icon: <Users className="h-5 w-5" /> },
         { to: '/support-sessions', label: 'nav.support', icon: <LifeBuoy className="h-5 w-5" /> },
+        { to: '/reference', label: 'nav.reference', icon: <BookOpen className="h-5 w-5" /> },
         { to: '/audit', label: 'nav.audit', icon: <ScrollText className="h-5 w-5" /> },
       ];
     }
     return [
       { to: '/', label: 'nav.dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
       { to: '/my-companies', label: 'nav.myCompanies', icon: <Briefcase className="h-5 w-5" /> },
+      { to: '/reference', label: 'nav.reference', icon: <BookOpen className="h-5 w-5" /> },
     ];
   }
   const home: NavItem = { to: '/', label: 'nav.home', icon: <Home className="h-5 w-5" /> };
