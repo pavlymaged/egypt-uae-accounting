@@ -29,7 +29,7 @@ import { useStaff } from '../../auth/SessionProvider';
 import { useSupportSession } from '../../support/SupportSessionProvider';
 import { BookPanel } from '../books/BookPanel';
 import { staffBooksAccess } from '../books/books';
-import { adminCompanyTabs, CompanyTabs, useCompanyTab } from './CompanyTabs';
+import { adminCompanyTabs, CompanyTabs, isBookTab, useCompanyTab } from './CompanyTabs';
 import { CompanyUsersPanel } from './CompanyUsersPanel';
 import { SupportPanel } from './SupportPanel';
 
@@ -264,7 +264,7 @@ export function CompanyFormPage() {
           <Alert tone="info">{t('books.needSupport')}</Alert>
         </div>
       )}
-      {books && (tab === 'projects' || tab === 'clients' || tab === 'cash') && <BookPanel section={tab} access={books} />}
+      {books && isBookTab(tab) && <BookPanel section={tab} access={books} />}
 
       {company && tab === 'users' && <CompanyUsersPanel company={company} asAdmin />}
       {company && tab === 'staff' && <AssignedStaffPanel company={company} />}

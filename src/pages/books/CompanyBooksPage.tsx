@@ -8,12 +8,14 @@ import { supabase } from '../../lib/supabase';
 import type { Company } from '../../types';
 import { NotFoundPage } from '../NotFoundPage';
 import { BookPanel, type BookSection } from './BookPanel';
-import { memberBooksAccess, type BooksAccess } from './books';
+import { memberBooksAccess, type BooksAccess, type MemberSwitches } from './books';
 
 const TITLES: Record<BookSection, { title: TranslationKey; subtitle: TranslationKey }> = {
   projects: { title: 'nav.projects', subtitle: 'projects.subtitle' },
   clients: { title: 'nav.clients', subtitle: 'clients.subtitle' },
   cash: { title: 'nav.cashAccounts', subtitle: 'cash.subtitle' },
+  payments: { title: 'nav.payments', subtitle: 'payments.subtitle' },
+  months: { title: 'nav.months', subtitle: 'months.subtitle' },
 };
 
 export function CompanyBooksPage({ section }: { section: BookSection }) {
@@ -31,13 +33,13 @@ export function CompanyBooksPage({ section }: { section: BookSection }) {
     setState('loading');
     Promise.all([
       supabase.from('companies').select('id, service_model, status, base_currency').eq('id', membership.company_id).maybeSingle(),
-      supabase.from('company_users').select('can_record').eq('company_id', membership.company_id).eq('user_id', userId).maybeSingle(),
+      supabase.from('company_users').select('can_record, can_post').eq('company_id', membership.company_id).eq('user_id', userId).maybeSingle(),
     ]).then(([company, me]) => {
       if (cancelled) return;
       if (company.error || me.error) return setState('failed');
       if (!company.data || !me.data) return setState('notFound');
       const row = company.data as Pick<Company, 'id' | 'service_model' | 'status' | 'base_currency'>;
-      setAccess(memberBooksAccess(membership.role, (me.data as { can_record: boolean }).can_record === true, row));
+      setAccess(memberBooksAccess(membership.role, me.data as MemberSwitches, row));
       setState('ready');
     });
     return () => {

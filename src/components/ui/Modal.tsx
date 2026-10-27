@@ -12,11 +12,12 @@ interface ModalProps {
   submitTone?: 'primary' | 'danger';
   busy?: boolean;
   wide?: boolean;
+  extraActions?: ReactNode;
   onSubmit: () => void;
   onClose: () => void;
 }
 
-export function Modal({ open, title, description, children, submitLabel, submitTone = 'primary', busy, wide, onSubmit, onClose }: ModalProps) {
+export function Modal({ open, title, description, children, submitLabel, submitTone = 'primary', busy, wide, extraActions, onSubmit, onClose }: ModalProps) {
   const { t } = useI18n();
   const titleId = useId();
 
@@ -67,7 +68,8 @@ export function Modal({ open, title, description, children, submitLabel, submitT
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
         <div className="flex flex-col-reverse gap-2 border-t border-ink-100 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
           <Button variant="secondary" onClick={onClose} disabled={busy}>{t('common.cancel')}</Button>
-          <Button type="submit" variant={submitTone} loading={busy}>{submitLabel}</Button>
+          <Button type="submit" variant={extraActions ? 'secondary' : submitTone} loading={busy}>{submitLabel}</Button>
+          {extraActions}
         </div>
       </form>
     </div>

@@ -4,8 +4,13 @@ import { isPlatformAdmin, isSessionOpen, type Company, type CompanyRole, type Cu
 
 export interface BooksAccess {
   companyId: string;
+  selfService: boolean;
   canManageSetup: boolean;
   canManageClients: boolean;
+  canRecord: boolean;
+  canPost: boolean;
+  canCloseMonth: boolean;
+  canReopenMonth: boolean;
   currency: Currency;
 }
 
@@ -84,19 +89,53 @@ export function staffBooksAccess(role: StaffRole, company: CompanyRef, support: 
   if (company.service_model === 'self_service') {
     if (!isPlatformAdmin(role) || !support || support.company_id !== company.id || !isSessionOpen(support)) return null;
     const edit = open && support.mode === 'edit';
-    return { companyId: company.id, canManageSetup: edit, canManageClients: edit, currency: company.base_currency };
+    return {
+      companyId: company.id,
+      selfService: true,
+      canManageSetup: edit,
+      canManageClients: edit,
+      canRecord: edit,
+      canPost: edit,
+      canCloseMonth: false,
+      canReopenMonth: false,
+      currency: company.base_currency,
+    };
   }
   const setup = open && isPlatformAdmin(role);
-  return { companyId: company.id, canManageSetup: setup, canManageClients: setup || (open && role === 'accountant'), currency: company.base_currency };
-}
-
-export function memberBooksAccess(role: CompanyRole, canRecord: boolean, company: CompanyRef): BooksAccess {
-  const open = company.status === 'active' && company.service_model === 'self_service';
-  const owner = open && role === 'owner';
+  const record = open && (isPlatformAdmin(role) || role === 'accountant');
   return {
     companyId: company.id,
+    selfService: false,
+    canManageSetup: setup,
+    canManageClients: record,
+    canRecord: record,
+    canPost: open && (isPlatformAdmin(role) || role === 'checker'),
+    canCloseMonth: isPlatformAdmin(role),
+    canReopenMonth: role === 'super_admin',
+    currency: company.base_currency,
+  };
+}
+
+export interface MemberSwitches {
+  can_record: boolean;
+  can_post: boolean;
+}
+
+export function memberBooksAccess(role: CompanyRole, switches: MemberSwitches, company: CompanyRef): BooksAccess {
+  const selfService = company.service_model === 'self_service';
+  const open = company.status === 'active' && selfService;
+  const isOwner = selfService && role === 'owner';
+  const owner = open && role === 'owner';
+  const record = owner || (open && role === 'bookkeeper' && switches.can_record === true);
+  return {
+    companyId: company.id,
+    selfService,
     canManageSetup: owner,
-    canManageClients: owner || (open && role === 'bookkeeper' && canRecord),
+    canManageClients: record,
+    canRecord: record,
+    canPost: owner || (open && role === 'bookkeeper' && switches.can_post === true),
+    canCloseMonth: isOwner,
+    canReopenMonth: isOwner,
     currency: company.base_currency,
   };
 }

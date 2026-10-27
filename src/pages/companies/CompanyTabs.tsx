@@ -1,13 +1,14 @@
-import { Building2, FolderKanban, Landmark, LifeBuoy, UserRound, Users, UsersRound } from 'lucide-react';
+import { Building2, CalendarCheck, FolderKanban, Landmark, LifeBuoy, Receipt, UserRound, Users, UsersRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { TranslationKey } from '../../i18n/en';
 import { useI18n } from '../../i18n/I18nProvider';
 import type { Company } from '../../types';
+import type { BookSection } from '../books/BookPanel';
 
-export type CompanyTab = 'details' | 'users' | 'staff' | 'support' | 'projects' | 'clients' | 'cash';
+export type CompanyTab = 'details' | 'users' | 'staff' | 'support' | 'projects' | 'clients' | 'cash' | 'payments' | 'months';
 
-export const BOOK_TABS: CompanyTab[] = ['projects', 'clients', 'cash'];
+export const BOOK_TABS: CompanyTab[] = ['payments', 'projects', 'clients', 'cash', 'months'];
 
 export function adminCompanyTabs(company: Pick<Company, 'service_model'> | null, booksVisible: boolean): CompanyTab[] {
   if (!company) return ['details'];
@@ -25,6 +26,10 @@ export function useCompanyTab(tabs: CompanyTab[]): [CompanyTab, (tab: CompanyTab
   return [tab, setTab];
 }
 
+export function isBookTab(tab: CompanyTab): tab is BookSection {
+  return BOOK_TABS.includes(tab);
+}
+
 const META: Record<CompanyTab, { label: TranslationKey; icon: ReactNode }> = {
   details: { label: 'companyTabs.details', icon: <Building2 className="h-4 w-4" /> },
   users: { label: 'companyTabs.users', icon: <Users className="h-4 w-4" /> },
@@ -33,6 +38,8 @@ const META: Record<CompanyTab, { label: TranslationKey; icon: ReactNode }> = {
   projects: { label: 'companyTabs.projects', icon: <FolderKanban className="h-4 w-4" /> },
   clients: { label: 'companyTabs.clients', icon: <UserRound className="h-4 w-4" /> },
   cash: { label: 'companyTabs.cash', icon: <Landmark className="h-4 w-4" /> },
+  payments: { label: 'companyTabs.payments', icon: <Receipt className="h-4 w-4" /> },
+  months: { label: 'companyTabs.months', icon: <CalendarCheck className="h-4 w-4" /> },
 };
 
 export function CompanyTabs({ tabs, tab, onChange }: { tabs: CompanyTab[]; tab: CompanyTab; onChange: (tab: CompanyTab) => void }) {

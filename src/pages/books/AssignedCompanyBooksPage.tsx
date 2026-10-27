@@ -8,7 +8,7 @@ import { useI18n } from '../../i18n/I18nProvider';
 import { supabase } from '../../lib/supabase';
 import { COMPANY_COLUMNS, type Company } from '../../types';
 import { CompanyStatusBadge } from '../companies/CompanyBadges';
-import { BOOK_TABS, CompanyTabs, useCompanyTab } from '../companies/CompanyTabs';
+import { BOOK_TABS, CompanyTabs, isBookTab, useCompanyTab } from '../companies/CompanyTabs';
 import { NotFoundPage } from '../NotFoundPage';
 import { BookPanel } from './BookPanel';
 import { staffBooksAccess } from './books';
@@ -63,7 +63,7 @@ export function AssignedCompanyBooksPage() {
       {state === 'ready' && access && (
         <>
           <CompanyTabs tabs={BOOK_TABS} tab={tab} onChange={setTab} />
-          {(tab === 'projects' || tab === 'clients' || tab === 'cash') && <BookPanel section={tab} access={access} />}
+          {isBookTab(tab) && <BookPanel section={tab} access={access} />}
         </>
       )}
     </div>

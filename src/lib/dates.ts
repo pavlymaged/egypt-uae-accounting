@@ -47,3 +47,18 @@ export function todayIso(): string {
   const dd = String(now.getDate()).padStart(2, '0');
   return `${now.getFullYear()}-${mm}-${dd}`;
 }
+
+export function todayIn(timeZone: string | null | undefined): string {
+  if (!timeZone) return todayIso();
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  } catch {
+    return todayIso();
+  }
+}
+
+export function formatMonth(value: string, lang: Lang): string {
+  const [y, m] = value.slice(0, 7).split('-').map((p) => parseInt(p, 10));
+  if (!y || !m) return value;
+  return new Intl.DateTimeFormat(lang === 'ar' ? 'ar-u-nu-latn' : 'en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(y, m - 1, 1)));
+}

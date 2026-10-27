@@ -100,6 +100,8 @@ function AppRoutes() {
             <Route path="projects" element={<CompanyBooksPage key="projects" section="projects" />} />
             <Route path="clients" element={<CompanyBooksPage key="clients" section="clients" />} />
             <Route path="cash-accounts" element={<CompanyBooksPage key="cash" section="cash" />} />
+            <Route path="payments" element={<CompanyBooksPage key="payments" section="payments" />} />
+            <Route path="months" element={<CompanyBooksPage key="months" section="months" />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>
