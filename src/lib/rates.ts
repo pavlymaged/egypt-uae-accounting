@@ -1,10 +1,6 @@
-const DECIMAL = /^(-?)(\d+)(?:\.(\d+))?$/;
+import { trimZeros } from './decimal';
 
-function trimZeros(value: string): string {
-  if (!value.includes('.')) return value;
-  const trimmed = value.replace(/0+$/, '');
-  return trimmed.endsWith('.') ? trimmed.slice(0, -1) : trimmed;
-}
+const DECIMAL = /^(-?)(\d+)(?:\.(\d+))?$/;
 
 export function storedRate(stored: string): string {
   return DECIMAL.test(stored.trim()) ? trimZeros(stored.trim()) : stored;

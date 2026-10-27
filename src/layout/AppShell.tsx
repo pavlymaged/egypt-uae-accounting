@@ -1,4 +1,4 @@
-import { BookOpen, Briefcase, Building2, History, Home, LayoutDashboard, LifeBuoy, LogOut, Menu, Repeat, ScrollText, UserCog, Users, X } from 'lucide-react';
+import { BookOpen, Briefcase, Building2, FolderKanban, History, Home, Landmark, LayoutDashboard, LifeBuoy, LogOut, Menu, Repeat, ScrollText, UserCog, UserRound, Users, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/SessionProvider';
@@ -36,13 +36,20 @@ function useNavItems(): NavItem[] {
     ];
   }
   const home: NavItem = { to: '/', label: 'nav.home', icon: <Home className="h-5 w-5" /> };
+  const books: NavItem[] = [
+    { to: '/projects', label: 'nav.projects', icon: <FolderKanban className="h-5 w-5" /> },
+    { to: '/clients', label: 'nav.clients', icon: <UserRound className="h-5 w-5" /> },
+    { to: '/cash-accounts', label: 'nav.cashAccounts', icon: <Landmark className="h-5 w-5" /> },
+  ];
   if (activeCompany?.role === 'owner') {
     return [
       home,
+      ...books,
       { to: '/users', label: 'nav.users', icon: <UserCog className="h-5 w-5" /> },
       { to: '/activity', label: 'nav.activity', icon: <History className="h-5 w-5" /> },
     ];
   }
+  if (activeCompany?.role === 'bookkeeper') return [home, ...books];
   return [home];
 }
 

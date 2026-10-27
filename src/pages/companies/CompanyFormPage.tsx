@@ -25,7 +25,11 @@ import { EMAIL_RE } from '../auth/LoginPage';
 import { NotFoundPage } from '../NotFoundPage';
 import { AssignedStaffPanel } from './AssignedStaffPanel';
 import { CompanyStatusBadge } from './CompanyBadges';
-import { CompanyTabs, useCompanyTab } from './CompanyTabs';
+import { useStaff } from '../../auth/SessionProvider';
+import { useSupportSession } from '../../support/SupportSessionProvider';
+import { BookPanel } from '../books/BookPanel';
+import { staffBooksAccess } from '../books/books';
+import { adminCompanyTabs, CompanyTabs, useCompanyTab } from './CompanyTabs';
 import { CompanyUsersPanel } from './CompanyUsersPanel';
 import { SupportPanel } from './SupportPanel';
 
@@ -80,7 +84,11 @@ export function CompanyFormPage() {
   const location = useLocation();
 
   const [company, setCompany] = useState<Company | null>(null);
-  const [tab, setTab] = useCompanyTab(company);
+  const staff = useStaff();
+  const { active: support } = useSupportSession();
+  const books = company && staff ? staffBooksAccess(staff.staff_role, company, support) : null;
+  const tabs = adminCompanyTabs(company, !!books);
+  const [tab, setTab] = useCompanyTab(tabs);
   const [values, setValues] = useState<FormValues>(EMPTY);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'notFound' | 'failed'>(isNew ? 'ready' : 'loading');
   const [attempt, setAttempt] = useState(0);
@@ -249,7 +257,14 @@ export function CompanyFormPage() {
         }
       />
 
-      {company && <CompanyTabs company={company} tab={tab} onChange={setTab} />}
+      {company && <CompanyTabs tabs={tabs} tab={tab} onChange={setTab} />}
+
+      {company && !books && company.service_model === 'self_service' && tab === 'details' && (
+        <div className="mb-6">
+          <Alert tone="info">{t('books.needSupport')}</Alert>
+        </div>
+      )}
+      {books && (tab === 'projects' || tab === 'clients' || tab === 'cash') && <BookPanel section={tab} access={books} />}
 
       {company && tab === 'users' && <CompanyUsersPanel company={company} asAdmin />}
       {company && tab === 'staff' && <AssignedStaffPanel company={company} />}

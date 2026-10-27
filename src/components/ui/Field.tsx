@@ -1,5 +1,5 @@
 import { Eye, EyeOff } from 'lucide-react';
-import { useId, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { useId, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
 import { useI18n } from '../../i18n/I18nProvider';
 
 interface FieldProps {
@@ -50,6 +50,14 @@ interface TextInputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 export function TextInput({ invalid = false, className = '', ...rest }: TextInputProps) {
   return <input {...rest} aria-invalid={invalid || undefined} className={`${inputClass(invalid)} ${className}`} />;
+}
+
+interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
+  invalid?: boolean;
+}
+
+export function TextArea({ invalid = false, className = '', rows = 3, ...rest }: TextAreaProps) {
+  return <textarea {...rest} rows={rows} aria-invalid={invalid || undefined} className={`${inputClass(invalid)} h-auto resize-y py-2 ${className}`} />;
 }
 
 interface SelectInputProps extends SelectHTMLAttributes<HTMLSelectElement> {

@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Alert, Card, Spinner } from '../../components/ui/Feedback';
 import { useI18n } from '../../i18n/I18nProvider';
 import { supabase } from '../../lib/supabase';
-import { ratePercent, storedRate } from './rates';
+import { ratePercent, storedRate } from '../../lib/rates';
 
 interface FeeRow {
   markup: string;

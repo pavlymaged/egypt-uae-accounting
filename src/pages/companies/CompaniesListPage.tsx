@@ -43,7 +43,8 @@ export function CompaniesListPage({ mode }: { mode: 'all' | 'mine' }) {
     return companies.filter((c) => c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q));
   }, [companies, query]);
 
-  const open = (c: Company) => editable && navigate(`/companies/${c.id}`);
+  const linkTo = (c: Company) => (editable ? `/companies/${c.id}` : `/my-companies/${c.id}`);
+  const open = (c: Company) => navigate(linkTo(c));
 
   return (
     <div className="animate-fade-in">
@@ -101,16 +102,12 @@ export function CompaniesListPage({ mode }: { mode: 'all' | 'mine' }) {
                       <tr
                         key={c.id}
                         onClick={() => open(c)}
-                        className={`transition-colors ${editable ? 'cursor-pointer hover:bg-brand-50/40' : ''}`}
+                        className="cursor-pointer transition-colors hover:bg-brand-50/40"
                       >
                         <td className="px-4 py-3">
-                          {editable ? (
-                            <Link to={`/companies/${c.id}`} onClick={(e) => e.stopPropagation()} dir="ltr" className="font-mono text-xs font-medium text-brand-700 hover:underline">
-                              {c.code}
-                            </Link>
-                          ) : (
-                            <span dir="ltr" className="font-mono text-xs font-medium text-ink-700">{c.code}</span>
-                          )}
+                          <Link to={linkTo(c)} onClick={(e) => e.stopPropagation()} dir="ltr" className="font-mono text-xs font-medium text-brand-700 hover:underline">
+                            {c.code}
+                          </Link>
                         </td>
                         <td className="px-4 py-3 font-medium text-ink-900">{c.name}</td>
                         <td className="px-4 py-3"><ServiceModelBadge model={c.service_model} /></td>
@@ -150,12 +147,12 @@ export function CompaniesListPage({ mode }: { mode: 'all' | 'mine' }) {
                           </p>
                         )}
                       </div>
-                      {editable && <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-ink-300 rtl:-scale-x-100" />}
+                      <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-ink-300 rtl:-scale-x-100" />
                     </div>
                   );
                   return (
                     <li key={c.id}>
-                      {editable ? <Link to={`/companies/${c.id}`} className="block transition-colors hover:bg-brand-50/40">{body}</Link> : body}
+                      <Link to={linkTo(c)} className="block transition-colors hover:bg-brand-50/40">{body}</Link>
                     </li>
                   );
                 })}

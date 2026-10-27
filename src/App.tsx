@@ -13,6 +13,8 @@ import { CompaniesListPage } from './pages/companies/CompaniesListPage';
 import { CompanyFormPage } from './pages/companies/CompanyFormPage';
 import { OwnerUsersPage } from './pages/companies/OwnerUsersPage';
 import { AuditPage } from './pages/audit/AuditPage';
+import { AssignedCompanyBooksPage } from './pages/books/AssignedCompanyBooksPage';
+import { CompanyBooksPage } from './pages/books/CompanyBooksPage';
 import { SupportSessionsPage } from './pages/support/SupportSessionsPage';
 import { CompanyHome, StaffDashboard } from './pages/HomePages';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -87,6 +89,7 @@ function AppRoutes() {
             <Route path="companies/new" element={<StaffGate admin><CompanyFormPage /></StaffGate>} />
             <Route path="companies/:id" element={<StaffGate admin><CompanyFormPage /></StaffGate>} />
             <Route path="my-companies" element={<StaffGate admin={false}><CompaniesListPage mode="mine" /></StaffGate>} />
+            <Route path="my-companies/:id" element={<StaffGate admin={false}><AssignedCompanyBooksPage /></StaffGate>} />
             <Route path="staff" element={<StaffGate admin><StaffListPage /></StaffGate>} />
             <Route path="staff/:id" element={<StaffGate admin><StaffEditPage /></StaffGate>} />
             <Route path="support-sessions" element={<StaffGate admin><SupportSessionsPage /></StaffGate>} />
@@ -94,6 +97,9 @@ function AppRoutes() {
             <Route path="audit" element={<StaffGate admin><AuditPage mode="all" /></StaffGate>} />
             <Route path="users" element={<OwnerUsersPage />} />
             <Route path="activity" element={<AuditPage mode="company" />} />
+            <Route path="projects" element={<CompanyBooksPage key="projects" section="projects" />} />
+            <Route path="clients" element={<CompanyBooksPage key="clients" section="clients" />} />
+            <Route path="cash-accounts" element={<CompanyBooksPage key="cash" section="cash" />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>
