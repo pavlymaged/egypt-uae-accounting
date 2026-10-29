@@ -5,7 +5,7 @@ import { trimZeros } from '../../../lib/decimal';
 import { formatDate } from '../../../lib/dates';
 import { formatNumber } from '../../../lib/money';
 import type { Currency } from '../../../types';
-import { sumText, type JournalLine } from './payments';
+import { sumText, type JournalLine } from './entries';
 
 interface Props {
   lines: JournalLine[];
@@ -13,7 +13,7 @@ interface Props {
   baseCurrency: Currency;
 }
 
-export function PaymentJournal({ lines, cashName, baseCurrency }: Props) {
+export function EntryJournal({ lines, cashName, baseCurrency }: Props) {
   const { t } = useI18n();
   const journals = [false, true]
     .map((reversal) => lines.filter((l) => l.is_reversal === reversal).sort((a, b) => a.line_no - b.line_no))

@@ -15,6 +15,7 @@ const TITLES: Record<BookSection, { title: TranslationKey; subtitle: Translation
   clients: { title: 'nav.clients', subtitle: 'clients.subtitle' },
   cash: { title: 'nav.cashAccounts', subtitle: 'cash.subtitle' },
   payments: { title: 'nav.payments', subtitle: 'payments.subtitle' },
+  fees: { title: 'nav.feeCharges', subtitle: 'feeCharges.subtitle' },
   months: { title: 'nav.months', subtitle: 'months.subtitle' },
 };
 
@@ -58,7 +59,7 @@ export function CompanyBooksPage({ section }: { section: BookSection }) {
           {t('common.loadFailed')}
         </Alert>
       )}
-      {state === 'ready' && access && <BookPanel section={section} access={access} />}
+      {state === 'ready' && access && <BookPanel section={section} access={access} routed />}
     </div>
   );
 }

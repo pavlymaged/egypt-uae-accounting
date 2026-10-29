@@ -8,7 +8,8 @@ import { ratePercent } from '../../../lib/rates';
 import { supabase } from '../../../lib/supabase';
 import type { Currency } from '../../../types';
 import { dbErrorText, type FeeMethod } from '../books';
-import { PREVIEW_COLUMNS, subtractText, type Preview } from './payments';
+import { subtractText } from '../entries/entries';
+import { PREVIEW_COLUMNS, type Preview } from './payments';
 
 interface Input {
   companyId: string;

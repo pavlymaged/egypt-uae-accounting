@@ -1,4 +1,4 @@
-import { BookOpen, Briefcase, Building2, CalendarCheck, FolderKanban, History, Home, Landmark, LayoutDashboard, LifeBuoy, LogOut, Menu, Receipt, Repeat, ScrollText, UserCog, UserRound, Users, X } from 'lucide-react';
+import { BadgePercent, BookOpen, Briefcase, Building2, CalendarCheck, FolderKanban, History, Home, Landmark, LayoutDashboard, LifeBuoy, LogOut, Menu, Receipt, Repeat, ScrollText, UserCog, UserRound, Users, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/SessionProvider';
@@ -38,6 +38,7 @@ function useNavItems(): NavItem[] {
   const home: NavItem = { to: '/', label: 'nav.home', icon: <Home className="h-5 w-5" /> };
   const books: NavItem[] = [
     { to: '/payments', label: 'nav.payments', icon: <Receipt className="h-5 w-5" /> },
+    { to: '/fee-charges', label: 'nav.feeCharges', icon: <BadgePercent className="h-5 w-5" /> },
     { to: '/projects', label: 'nav.projects', icon: <FolderKanban className="h-5 w-5" /> },
     { to: '/clients', label: 'nav.clients', icon: <UserRound className="h-5 w-5" /> },
     { to: '/cash-accounts', label: 'nav.cashAccounts', icon: <Landmark className="h-5 w-5" /> },

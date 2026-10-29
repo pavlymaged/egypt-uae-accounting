@@ -32,7 +32,7 @@ interface ProjectData {
 
 type StatusFilter = 'active' | 'inactive' | 'all';
 
-export function ProjectsPanel({ access }: { access: BooksAccess }) {
+export function ProjectsPanel({ access, chargeHref }: { access: BooksAccess; chargeHref: (entryId: string) => string }) {
   const { t } = useI18n();
   const [params, setParams] = useSearchParams();
   const [data, setData] = useState<ProjectData | null>(null);
@@ -148,6 +148,7 @@ export function ProjectsPanel({ access }: { access: BooksAccess }) {
             clients={clients}
             typeName={typeName}
             rates={data.rates}
+            chargeHref={chargeHref}
             onBack={() => showProject(null)}
             onEdit={() => setForm({ project: openProject })}
           />

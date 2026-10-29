@@ -11,10 +11,12 @@ import { ratePercent } from '../../../lib/rates';
 import { supabase } from '../../../lib/supabase';
 import { CASH_COLUMNS, PROJECT_COLUMNS, type BooksAccess, type CashAccount, type Project } from '../books';
 import { ListToolbar } from '../ListToolbar';
-import { PaymentActions, PaymentStatusBadge } from './PaymentActions';
+import { isZeroText } from '../entries/entries';
+import { EntryActions, EntryStatusBadge } from '../entries/EntryActions';
+import { EntryStatusChips, ReturnNote, statusCounts, type StatusFilter } from '../entries/EntryListParts';
 import { PaymentDetail } from './PaymentDetail';
 import { PaymentForm } from './PaymentForm';
-import { PAYMENT_COLUMNS, PAYMENT_STATUSES, STATUS_LABEL, isZeroText, type Payment, type PaymentStatus } from './payments';
+import { PAYMENT_COLUMNS, type Payment } from './payments';
 
 interface PaymentData {
   payments: Payment[];
@@ -32,7 +34,7 @@ export function PaymentsPanel({ access }: { access: BooksAccess }) {
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [query, setQuery] = useState('');
-  const [status, setStatus] = useState<PaymentStatus | 'all'>('all');
+  const [status, setStatus] = useState<StatusFilter>('all');
   const [projectFilter, setProjectFilter] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -69,11 +71,7 @@ export function PaymentsPanel({ access }: { access: BooksAccess }) {
     };
   }, [access.companyId, attempt]);
 
-  const counts = useMemo(() => {
-    const result = new Map<PaymentStatus | 'all', number>([['all', data?.payments.length ?? 0]]);
-    (data?.payments ?? []).forEach((p) => result.set(p.status, (result.get(p.status) ?? 0) + 1));
-    return result;
-  }, [data]);
+  const counts = useMemo(() => statusCounts(data?.payments ?? []), [data]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -161,7 +159,6 @@ export function PaymentsPanel({ access }: { access: BooksAccess }) {
   }
 
   const filterProjects = data.projects.filter((p) => !p.is_operation);
-  const chips: (PaymentStatus | 'all')[] = ['all', ...PAYMENT_STATUSES];
 
   return (
     <div className="space-y-4">
@@ -173,26 +170,7 @@ export function PaymentsPanel({ access }: { access: BooksAccess }) {
       </div>
       {noticeEl}
 
-      <div role="tablist" aria-label={t('books.col.status')} className="flex flex-wrap gap-2">
-        {chips.map((chip) => {
-          const selected = status === chip;
-          return (
-            <button
-              key={chip}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => setStatus(chip)}
-              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
-                selected ? 'border-brand-700 bg-brand-700 text-white' : 'border-ink-200 bg-white text-ink-700 hover:border-ink-300 hover:bg-ink-50'
-              }`}
-            >
-              {chip === 'all' ? t('books.filter.all') : t(STATUS_LABEL[chip])}
-              <span className={`rounded-full px-1.5 text-xs tabular-nums ${selected ? 'bg-white/20 text-white' : 'bg-ink-100 text-ink-600'}`}>{counts.get(chip) ?? 0}</span>
-            </button>
-          );
-        })}
-      </div>
+      <EntryStatusChips value={status} counts={counts} onChange={setStatus} />
 
       <Card>
         <ListToolbar query={query} onQuery={setQuery} placeholder={t('payments.search')}>
@@ -224,7 +202,7 @@ export function PaymentsPanel({ access }: { access: BooksAccess }) {
                   <button type="button" onClick={() => showPayment(p.entry_id)} className="group grid min-w-0 flex-1 gap-x-6 gap-y-2 text-start sm:grid-cols-[7rem_1fr_auto] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-lg">
                     <div className="space-y-1">
                       <p className="text-sm font-medium tabular-nums text-ink-900">{formatDate(p.entry_date, lang)}</p>
-                      <PaymentStatusBadge status={p.status} />
+                      <EntryStatusBadge status={p.status} />
                     </div>
                     <div className="min-w-0 space-y-0.5">
                       <p className="truncate font-medium text-ink-900">
@@ -249,17 +227,12 @@ export function PaymentsPanel({ access }: { access: BooksAccess }) {
                     </div>
                   </button>
                   <div className="flex items-center gap-1 lg:justify-end">
-                    <PaymentActions payment={p} onEdit={() => setForm({ payment: p })} onDone={done} onError={refused} />
+                    <EntryActions entry={p} kind="payment" onEdit={() => setForm({ payment: p })} onDone={done} onError={refused} />
                     <ChevronRight className="hidden h-5 w-5 shrink-0 text-ink-300 rtl:-scale-x-100 lg:block" />
                   </div>
                 </div>
                 {p.status === 'rejected' && p.reject_comment && (
-                  <div className="px-4 pb-4">
-                    <div className="rounded-lg border-s-4 border-amber-500 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
-                      <span className="font-semibold">{t('payments.returnComment')}: </span>
-                      <span dir="auto">{p.reject_comment}</span>
-                    </div>
-                  </div>
+                  <ReturnNote comment={p.reject_comment} />
                 )}
               </li>
             ))}

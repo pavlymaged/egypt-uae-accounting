@@ -9,9 +9,9 @@ import type { TranslationKey } from '../../../i18n/en';
 import { useI18n } from '../../../i18n/I18nProvider';
 import { supabase } from '../../../lib/supabase';
 import { dbErrorText } from '../books';
-import { STATUS_LABEL, type Payment, type PaymentStatus } from './payments';
+import { STATUS_LABEL, type EntryStatus, type EntryWorkflow } from './entries';
 
-const STATUS_TONE: Record<PaymentStatus, 'neutral' | 'sky' | 'warning' | 'success' | 'danger'> = {
+const STATUS_TONE: Record<EntryStatus, 'neutral' | 'sky' | 'warning' | 'success' | 'danger'> = {
   draft: 'neutral',
   submitted: 'sky',
   rejected: 'warning',
@@ -19,26 +19,54 @@ const STATUS_TONE: Record<PaymentStatus, 'neutral' | 'sky' | 'warning' | 'succes
   reversed: 'danger',
 };
 
-export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
+export function EntryStatusBadge({ status }: { status: EntryStatus }) {
   const { t } = useI18n();
   return <Badge tone={STATUS_TONE[status]}>{t(STATUS_LABEL[status])}</Badge>;
 }
 
+export type EntryKind = 'payment' | 'feeCharge';
+
+const TEXT: Record<EntryKind, Record<'submitted' | 'posted' | 'rejected' | 'reversed' | 'rejectTitle' | 'reverseTitle' | 'discardTitle' | 'discardBody', TranslationKey>> = {
+  payment: {
+    submitted: 'payments.done.submitted',
+    posted: 'payments.done.posted',
+    rejected: 'payments.done.rejected',
+    reversed: 'payments.done.reversed',
+    rejectTitle: 'payments.rejectTitle',
+    reverseTitle: 'payments.reverseTitle',
+    discardTitle: 'payments.discardTitle',
+    discardBody: 'payments.discardBody',
+  },
+  feeCharge: {
+    submitted: 'feeCharges.done.submitted',
+    posted: 'feeCharges.done.posted',
+    rejected: 'feeCharges.done.rejected',
+    reversed: 'feeCharges.done.reversed',
+    rejectTitle: 'feeCharges.rejectTitle',
+    reverseTitle: 'feeCharges.reverseTitle',
+    discardTitle: 'feeCharges.discardTitle',
+    discardBody: 'feeCharges.discardBody',
+  },
+};
+
 type Dialog = 'reject' | 'reverse' | 'discard' | null;
+type Flags = Pick<EntryWorkflow, 'entry_id' | 'can_edit' | 'can_submit' | 'can_post' | 'can_reject' | 'can_reverse' | 'can_discard'>;
 
 interface Props {
-  payment: Payment;
+  entry: Flags;
+  kind: EntryKind;
   onEdit: () => void;
   onDone: (message: string) => void;
   onError: (message: string) => void;
 }
 
-export function PaymentActions({ payment, onEdit, onDone, onError }: Props) {
+export function EntryActions({ entry, kind, onEdit, onDone, onError }: Props) {
   const { t } = useI18n();
   const [busy, setBusy] = useState<string | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [text, setText] = useState('');
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const words = TEXT[kind];
 
   async function run(key: string, call: () => PromiseLike<{ error: { message?: string } | null }>, success: TranslationKey) {
     setBusy(key);
@@ -61,27 +89,27 @@ export function PaymentActions({ payment, onEdit, onDone, onError }: Props) {
     setDialog(d);
   };
 
-  const id = payment.entry_id;
+  const id = entry.entry_id;
   return (
     <div className="flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-      {payment.can_edit && <Button variant="ghost" icon={<Pencil className="h-4 w-4" />} onClick={onEdit}>{t('common.edit')}</Button>}
-      {payment.can_submit && (
-        <Button variant="secondary" icon={<Send className="h-4 w-4" />} loading={busy === 'submit'} disabled={!!busy} onClick={() => run('submit', () => supabase.rpc('submit_entry', { p_entry: id }), 'payments.done.submitted')}>
+      {entry.can_edit && <Button variant="ghost" icon={<Pencil className="h-4 w-4" />} onClick={onEdit}>{t('common.edit')}</Button>}
+      {entry.can_submit && (
+        <Button variant="secondary" icon={<Send className="h-4 w-4" />} loading={busy === 'submit'} disabled={!!busy} onClick={() => run('submit', () => supabase.rpc('submit_entry', { p_entry: id }), words.submitted)}>
           {t('payments.action.submit')}
         </Button>
       )}
-      {payment.can_post && (
-        <Button icon={<CheckCheck className="h-4 w-4" />} loading={busy === 'post'} disabled={!!busy} onClick={() => run('post', () => supabase.rpc('post_entry', { p_entry: id }), 'payments.done.posted')}>
+      {entry.can_post && (
+        <Button icon={<CheckCheck className="h-4 w-4" />} loading={busy === 'post'} disabled={!!busy} onClick={() => run('post', () => supabase.rpc('post_entry', { p_entry: id }), words.posted)}>
           {t('payments.action.post')}
         </Button>
       )}
-      {payment.can_reject && <Button variant="secondary" icon={<Undo2 className="h-4 w-4" />} disabled={!!busy} onClick={() => open('reject')}>{t('payments.action.reject')}</Button>}
-      {payment.can_reverse && <Button variant="secondary" icon={<RotateCcw className="h-4 w-4" />} disabled={!!busy} onClick={() => open('reverse')}>{t('payments.action.reverse')}</Button>}
-      {payment.can_discard && <Button variant="ghost" icon={<Trash2 className="h-4 w-4" />} disabled={!!busy} onClick={() => open('discard')}>{t('payments.action.discard')}</Button>}
+      {entry.can_reject && <Button variant="secondary" icon={<Undo2 className="h-4 w-4" />} disabled={!!busy} onClick={() => open('reject')}>{t('payments.action.reject')}</Button>}
+      {entry.can_reverse && <Button variant="secondary" icon={<RotateCcw className="h-4 w-4" />} disabled={!!busy} onClick={() => open('reverse')}>{t('payments.action.reverse')}</Button>}
+      {entry.can_discard && <Button variant="ghost" icon={<Trash2 className="h-4 w-4" />} disabled={!!busy} onClick={() => open('discard')}>{t('payments.action.discard')}</Button>}
 
       <Modal
         open={dialog === 'reject' || dialog === 'reverse'}
-        title={t(dialog === 'reverse' ? 'payments.reverseTitle' : 'payments.rejectTitle')}
+        title={t(dialog === 'reverse' ? words.reverseTitle : words.rejectTitle)}
         description={t(dialog === 'reverse' ? 'payments.reverseHint' : 'payments.rejectHint')}
         submitLabel={t(dialog === 'reverse' ? 'payments.action.reverse' : 'payments.action.reject')}
         submitTone={dialog === 'reverse' ? 'danger' : 'primary'}
@@ -89,8 +117,8 @@ export function PaymentActions({ payment, onEdit, onDone, onError }: Props) {
         onClose={() => setDialog(null)}
         onSubmit={() =>
           dialog === 'reverse'
-            ? run('reverse', () => supabase.rpc('reverse_entry', { p_entry: id, p_reason: text }), 'payments.done.reversed')
-            : run('reject', () => supabase.rpc('reject_entry', { p_entry: id, p_comment: text }), 'payments.done.rejected')
+            ? run('reverse', () => supabase.rpc('reverse_entry', { p_entry: id, p_reason: text }), words.reversed)
+            : run('reject', () => supabase.rpc('reject_entry', { p_entry: id, p_comment: text }), words.rejected)
         }
       >
         <Field label={t(dialog === 'reverse' ? 'payments.field.reverseReason' : 'payments.field.rejectComment')} error={dialogError}>
@@ -100,14 +128,14 @@ export function PaymentActions({ payment, onEdit, onDone, onError }: Props) {
 
       <ConfirmDialog
         open={dialog === 'discard'}
-        title={t('payments.discardTitle')}
+        title={t(words.discardTitle)}
         confirmLabel={t('payments.action.discard')}
         tone="danger"
         loading={busy === 'discard'}
         onCancel={() => setDialog(null)}
         onConfirm={() => run('discard', () => supabase.rpc('discard_entry', { p_entry: id }), 'payments.done.discarded')}
       >
-        {t('payments.discardBody')}
+        {t(words.discardBody)}
       </ConfirmDialog>
     </div>
   );

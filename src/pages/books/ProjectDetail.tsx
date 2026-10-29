@@ -10,6 +10,8 @@ import { supabase } from '../../lib/supabase';
 import type { Currency } from '../../types';
 import { ActiveBadge } from '../staff/StaffListPage';
 import type { BooksAccess, Client, FeeRate, Milestone, Project } from './books';
+import { ProjectFeeProgress } from './fees/ProjectFeeProgress';
+import { ProjectFunds } from './fees/ProjectFunds';
 import { feeSummary, readSnapshot, type SnapshotView } from './projectFormat';
 
 interface Version {
@@ -28,17 +30,19 @@ interface Props {
   clients: Client[];
   typeName: Map<string, string>;
   rates: FeeRate[];
+  chargeHref: (entryId: string) => string;
   onBack: () => void;
   onEdit: () => void;
 }
 
-export function ProjectDetail({ project, access, milestones, clients, typeName, rates, onBack, onEdit }: Props) {
+export function ProjectDetail({ project, access, milestones, clients, typeName, rates, chargeHref, onBack, onEdit }: Props) {
   const { t, lang } = useI18n();
   const [versions, setVersions] = useState<Version[] | null>(null);
   const [names, setNames] = useState<Map<string, string>>(new Map());
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [openVersion, setOpenVersion] = useState<number | null>(null);
+  const [fundsKey, setFundsKey] = useState(0);
   const clientName = useMemo(() => new Map(clients.map((c) => [c.id, c.name])), [clients]);
 
   useEffect(() => {
@@ -110,6 +114,11 @@ export function ProjectDetail({ project, access, milestones, clients, typeName, 
           }
         />
       </Card>
+
+      {project.fee_method === 'fixed' && !project.is_operation && (
+        <ProjectFeeProgress project={project} access={access} chargeHref={chargeHref} onChanged={() => setFundsKey((k) => k + 1)} />
+      )}
+      <ProjectFunds companyId={access.companyId} projectCode={project.code} reloadKey={fundsKey} />
 
       <Card>
         <div className="flex items-center gap-2 border-b border-ink-200 px-5 py-4 sm:px-6">

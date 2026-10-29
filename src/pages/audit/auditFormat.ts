@@ -36,6 +36,8 @@ export const AUDIT_ENTITIES = [
   'project_milestones',
   'cash_accounts',
   'client_payments',
+  'project_completion',
+  'fee_charges',
 ] as const;
 
 type T = (key: TranslationKey, vars?: Record<string, string | number>) => string;
