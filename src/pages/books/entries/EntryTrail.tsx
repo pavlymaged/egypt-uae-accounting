@@ -87,7 +87,7 @@ export function EntryTimeline({ entry: e, trail }: { entry: EntryWorkflow; trail
   );
 }
 
-export function EntryJournalSection({ trail, access, accounts }: { trail: Trail; access: BooksAccess; accounts: CashAccount[] }) {
+export function EntryJournalSection({ trail, access, accounts, itemName }: { trail: Trail; access: BooksAccess; accounts: CashAccount[]; itemName?: Map<string, string> }) {
   const { t } = useI18n();
   const cashName = useMemo(() => new Map(accounts.map((a) => [a.code, a.name])), [accounts]);
   if (trail.failed) {
@@ -98,5 +98,5 @@ export function EntryJournalSection({ trail, access, accounts }: { trail: Trail;
     );
   }
   if (!trail.loaded) return <Spinner label={t('common.loading')} />;
-  return <EntryJournal lines={trail.loaded.lines} cashName={cashName} baseCurrency={access.currency} />;
+  return <EntryJournal lines={trail.loaded.lines} cashName={cashName} itemName={itemName} baseCurrency={access.currency} />;
 }

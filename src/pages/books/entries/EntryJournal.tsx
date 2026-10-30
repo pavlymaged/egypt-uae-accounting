@@ -10,14 +10,17 @@ import { sumText, type JournalLine } from './entries';
 interface Props {
   lines: JournalLine[];
   cashName: Map<string, string>;
+  itemName?: Map<string, string>;
   baseCurrency: Currency;
 }
 
-export function EntryJournal({ lines, cashName, baseCurrency }: Props) {
+export function EntryJournal({ lines, cashName, itemName, baseCurrency }: Props) {
   const { t } = useI18n();
-  const journals = [false, true]
-    .map((reversal) => lines.filter((l) => l.is_reversal === reversal).sort((a, b) => a.line_no - b.line_no))
-    .filter((group) => group.length > 0);
+  const groups = new Map<string, JournalLine[]>();
+  for (const l of lines) groups.set(l.journal_id, [...(groups.get(l.journal_id) ?? []), l]);
+  const journals = [...groups.values()]
+    .map((group) => group.sort((a, b) => a.line_no - b.line_no))
+    .sort((a, b) => Number(a[0].is_reversal) - Number(b[0].is_reversal) || a[0].journal_date.localeCompare(b[0].journal_date));
 
   return (
     <Card>
@@ -30,7 +33,7 @@ export function EntryJournal({ lines, cashName, baseCurrency }: Props) {
       ) : (
         <div className="divide-y divide-ink-200">
           {journals.map((group) => (
-            <JournalTable key={group[0].journal_id} lines={group} cashName={cashName} baseCurrency={baseCurrency} />
+            <JournalTable key={group[0].journal_id} lines={group} cashName={cashName} itemName={itemName} baseCurrency={baseCurrency} />
           ))}
         </div>
       )}
@@ -38,7 +41,7 @@ export function EntryJournal({ lines, cashName, baseCurrency }: Props) {
   );
 }
 
-function JournalTable({ lines, cashName, baseCurrency }: Props) {
+function JournalTable({ lines, cashName, itemName, baseCurrency }: Props) {
   const { t, lang } = useI18n();
   const first = lines[0];
   const debit = sumText(lines.filter((l) => l.side === 'debit').map((l) => l.base_amount));
@@ -50,6 +53,11 @@ function JournalTable({ lines, cashName, baseCurrency }: Props) {
     if (kind === 'CASH') return t('payments.journal.cash', { name: cashName.get(code) ?? code });
     if (kind === 'FUND') return t('payments.journal.fund', { code });
     if (key === 'REV:MGMT_FEE') return t('payments.journal.feeRevenue');
+    if (key.startsWith('EXP:OFFICE:')) {
+      const item = key.slice('EXP:OFFICE:'.length);
+      const name = itemName?.get(item);
+      return t('expenses.journal.office', { item: name ? `${item} ${name}` : item });
+    }
     return key;
   };
 
