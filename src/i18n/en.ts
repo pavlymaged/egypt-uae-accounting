@@ -9,6 +9,8 @@ export const en = {
   'common.cancel': 'Cancel',
   'common.back': 'Back',
   'common.retry': 'Try again',
+  'common.reload': 'Reload',
+  'common.screenCrashed': 'Something went wrong in this screen. Please reload the page.',
   'common.loading': 'Loading…',
   'common.edit': 'Edit',
   'common.view': 'View',

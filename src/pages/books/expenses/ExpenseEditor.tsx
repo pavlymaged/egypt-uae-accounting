@@ -8,7 +8,7 @@ import { formatNumber } from '../../../lib/money';
 import { supabase } from '../../../lib/supabase';
 import { dbErrorText, type BooksAccess } from '../books';
 import { baseTotal, blankLine, CHECK_COLUMNS, currencyTotals, LINE_COLUMNS, MAX_LINES, newKey, draftFromLine, splitLineErrors, toPayload, type ExpenseLine, type LineCheck, type LineDraft } from './expenses';
-import { LineCard, LineRow, type LineContext } from './ExpenseLine';
+import { LineCard, type LineContext } from './ExpenseLine';
 
 type Next = 'none' | 'submit' | 'post';
 export type SavedResult = { entryId: string; tone: 'success' | 'error'; text: string };
@@ -61,21 +61,8 @@ export function ExpenseEditor(props: Props) {
   return <BatchEditor {...props} initial={initial} />;
 }
 
-function useIsDesktop() {
-  const query = '(min-width: 1024px)';
-  const [desktop, setDesktop] = useState(() => window.matchMedia(query).matches);
-  useEffect(() => {
-    const media = window.matchMedia(query);
-    const onChange = () => setDesktop(media.matches);
-    media.addEventListener('change', onChange);
-    return () => media.removeEventListener('change', onChange);
-  }, []);
-  return desktop;
-}
-
 function BatchEditor({ access, ctx, entryId: startId, initial, onLeave, onSaved }: Props & { initial: LineDraft[] }) {
   const { t } = useI18n();
-  const desktop = useIsDesktop();
   const [entryId] = useState(startId);
   const [lines, setLines] = useState<LineDraft[]>(initial);
   const [dirty, setDirty] = useState(false);
@@ -207,32 +194,11 @@ function BatchEditor({ access, ctx, entryId: startId, initial, onLeave, onSaved 
       {error && <Alert tone="error"><span className="whitespace-pre-line">{error}</span></Alert>}
       {checkError && !error && <Alert tone="warning"><span className="whitespace-pre-line">{checkError}</span></Alert>}
 
-      {desktop ? (
-        <Card className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[110rem] text-sm">
-              <thead>
-                <tr className="border-b border-ink-200 bg-ink-50/70 text-start text-xs font-medium uppercase tracking-wide text-ink-500">
-                  {['#', t('payments.field.date'), t('payments.field.project'), t('expenses.field.account'), t('expenses.field.category'), t('expenses.field.item'), t('expenses.field.description'), t('payments.field.amount'), t('payments.field.rate'), t('expenses.field.returnShort'), t('expenses.field.receipt'), ''].map((h, i) => (
-                    <th key={i} className={`px-1.5 py-2.5 text-start font-medium ${i === 0 ? 'ps-3' : ''}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((line, index) => (
-                  <LineRow key={line.key} {...lineProps(line, index)} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      ) : (
-        <ul className="space-y-3">
-          {lines.map((line, index) => (
-            <LineCard key={line.key} {...lineProps(line, index)} />
-          ))}
-        </ul>
-      )}
+      <ul className="space-y-4">
+        {lines.map((line, index) => (
+          <LineCard key={line.key} {...lineProps(line, index)} />
+        ))}
+      </ul>
 
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="secondary" icon={<Plus className="h-4 w-4" />} disabled={full} onClick={() => add(1)}>{t('expenses.addLine')}</Button>

@@ -112,7 +112,7 @@ export function ExpenseDetail({ batch: b, access, accounts, itemName, companyNam
                       <Item label={t('expenses.field.category')}>{`${l.category}${l.category_name ? ` · ${l.category_name}` : ''}`}</Item>
                       <Item label={t('expenses.field.item')}>
                         <span dir="ltr" className="me-1.5 font-mono text-xs text-brand-700">{l.item_code}</span>
-                        {(lang === 'ar' ? l.item_name_ar : l.item_name) ?? ''}
+                        {((lang === 'ar' && l.item_name_ar) || l.item_name) ?? ''}
                       </Item>
                       <Item label={t('expenses.field.receipt')}>
                         {l.receipt_link && SAFE_LINK.test(l.receipt_link) ? (

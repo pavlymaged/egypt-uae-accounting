@@ -2,6 +2,7 @@ import { ChevronRight, Plus, ShoppingCart } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '../../../components/ui/Button';
+import { ScreenErrorBoundary } from '../../../components/ui/ScreenErrorBoundary';
 import { Alert, Card, EmptyState, Spinner } from '../../../components/ui/Feedback';
 import { TextInput } from '../../../components/ui/Field';
 import { useI18n } from '../../../i18n/I18nProvider';
@@ -86,7 +87,7 @@ export function ExpensesPanel({ access }: { access: BooksAccess }) {
     };
   }, [data, access.currency]);
 
-  const itemName = useMemo(() => new Map((data?.items ?? []).map((i) => [String(i.code), lang === 'ar' ? i.name_ar : i.name_en])), [data, lang]);
+  const itemName = useMemo(() => new Map((data?.items ?? []).map((i) => [String(i.code), (lang === 'ar' && i.name_ar) || i.name_en])), [data, lang]);
   const counts = useMemo(() => statusCounts(data?.batches ?? []), [data]);
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -145,15 +146,16 @@ export function ExpensesPanel({ access }: { access: BooksAccess }) {
     const allowed = editId === 'new' ? access.canRecord : !!editing?.can_edit;
     if (!allowed) return notFound;
     return (
-      <ExpenseEditor
-        key={editId}
-        access={access}
-        ctx={ctx}
-        entryId={editing?.entry_id ?? null}
-        today={data.today}
-        onLeave={() => go(editing ? { batch: editing.entry_id } : {})}
-        onSaved={saved}
-      />
+      <ScreenErrorBoundary key={editId}>
+        <ExpenseEditor
+          access={access}
+          ctx={ctx}
+          entryId={editing?.entry_id ?? null}
+          today={data.today}
+          onLeave={() => go(editing ? { batch: editing.entry_id } : {})}
+          onSaved={saved}
+        />
+      </ScreenErrorBoundary>
     );
   }
 

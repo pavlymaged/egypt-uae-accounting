@@ -1,5 +1,5 @@
 import { ChevronDown, Search } from 'lucide-react';
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useState, type KeyboardEvent } from 'react';
 import { inputClass } from '../../../components/ui/Field';
 import { useI18n } from '../../../i18n/I18nProvider';
 import type { ItemCode } from './expenses';
@@ -14,6 +14,8 @@ interface Props {
 
 const LIMIT = 60;
 
+const fold = (value: unknown) => String(value ?? '').normalize('NFKC').replace(/[\u064B-\u065F\u0670\u0640]/g, '').toLowerCase().trim();
+
 export function ItemCodePicker({ value, items, invalid = false, onChange, 'aria-label': label }: Props) {
   const { t, lang } = useI18n();
   const listId = useId();
@@ -23,12 +25,12 @@ export function ItemCodePicker({ value, items, invalid = false, onChange, 'aria-
   const selected = items.find((i) => String(i.code) === value) ?? null;
 
   const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const hits = q ? items.filter((i) => String(i.code).startsWith(q) || i.name_en.toLowerCase().includes(q) || i.name_ar.includes(q)) : items;
+    const q = fold(query);
+    const hits = q ? items.filter((i) => fold(i.code).startsWith(q) || fold(i.name_en).includes(q) || fold(i.name_ar).includes(q)) : items;
     return hits.slice(0, LIMIT);
   }, [items, query]);
 
-  const shown = selected ? `${selected.code} · ${lang === 'ar' ? selected.name_ar : selected.name_en}` : value;
+  const shown = selected ? `${selected.code} · ${(lang === 'ar' && selected.name_ar) || selected.name_en}` : value;
 
   function pick(item: ItemCode) {
     onChange(String(item.code));
@@ -36,7 +38,7 @@ export function ItemCodePicker({ value, items, invalid = false, onChange, 'aria-
     setQuery('');
   }
 
-  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setOpen(true);
@@ -98,7 +100,7 @@ export function ItemCodePicker({ value, items, invalid = false, onChange, 'aria-
                 <span dir="ltr" className="w-12 shrink-0 font-mono text-xs font-semibold text-brand-700">{item.code}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-ink-900">{item.name_en}</span>
-                  <span dir="rtl" className="block truncate text-xs text-ink-500">{item.name_ar}</span>
+                  {item.name_ar && <span dir="rtl" className="block truncate text-xs text-ink-500">{item.name_ar}</span>}
                 </span>
                 {item.scope === 'office' && <span className="shrink-0 rounded bg-gold-50 px-1.5 text-[11px] font-medium text-gold-800">{t('expenses.officeCode')}</span>}
               </li>

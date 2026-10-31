@@ -70,7 +70,7 @@ function useLineParts({ ctx, line, check, saveError, onChange }: Props) {
       <SelectInput aria-label={t('expenses.field.category')} invalid={bad('category')} value={line.category} onChange={(e) => onChange({ category: e.target.value })}>
         <option value="">-</option>
         {ctx.centres.map((c) => (
-          <option key={c.code} value={c.code}>{`${c.code} · ${lang === 'ar' ? c.name_ar : c.name_en}`}</option>
+          <option key={c.code} value={c.code}>{`${c.code} · ${(lang === 'ar' && c.name_ar) || c.name_en}`}</option>
         ))}
       </SelectInput>
     ),
@@ -82,11 +82,9 @@ function useLineParts({ ctx, line, check, saveError, onChange }: Props) {
         {account && <span className="pointer-events-none absolute end-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-ink-400">{account.currency}</span>}
       </div>
     ),
-    rate: rateNeeded ? (
+    rate: rateNeeded && account ? (
       <TextInput dir="ltr" inputMode="decimal" aria-label={t('payments.field.rate')} invalid={bad('rate')} value={line.rate} onChange={(e) => onChange({ rate: e.target.value })} placeholder={`1 ${account.currency} = ? ${ctx.base}`} className="tabular-nums" />
-    ) : (
-      <span className="block px-1 text-sm text-ink-300">-</span>
-    ),
+    ) : null,
     return: (
       <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-ink-700">
         <input type="checkbox" className="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500" checked={line.is_return} onChange={(e) => onChange({ is_return: e.target.checked })} />
@@ -160,75 +158,49 @@ export function LineButtons({ canRemove, onRemove, onCopy, index }: Pick<Props, 
   );
 }
 
-export function LineRow(props: Props) {
-  const { fields, charge, message } = useLineParts(props);
-  const hasStatus = !!message || !!props.check || props.checking;
-  const cell = 'px-1.5 py-2 align-top';
-  return (
-    <>
-      <tr className={`group ${props.index % 2 ? 'bg-ink-50/40' : 'bg-white'}`}>
-        <td className={`${cell} ps-3 pt-4 text-xs font-medium tabular-nums text-ink-400`}>{props.index + 1}</td>
-        <td className={`${cell} w-40`}>{fields.date}</td>
-        <td className={`${cell} w-56`}>
-          {fields.project}
-          <div className="mt-1 min-h-[1.25rem]">{charge}</div>
-        </td>
-        <td className={`${cell} w-48`}>{fields.account}</td>
-        <td className={`${cell} w-40`}>{fields.category}</td>
-        <td className={`${cell} w-60`}>{fields.item}</td>
-        <td className={`${cell} min-w-[14rem]`}>{fields.description}</td>
-        <td className={`${cell} w-36`}>{fields.amount}</td>
-        <td className={`${cell} w-36`}>{fields.rate}</td>
-        <td className={`${cell} pt-4`}>{fields.return}</td>
-        <td className={`${cell} w-48`}>{fields.receipt}</td>
-        <td className={`${cell} pe-3 pt-3`}><LineButtons {...props} /></td>
-      </tr>
-      {hasStatus && (
-        <tr className={props.index % 2 ? 'bg-ink-50/40' : 'bg-white'}>
-          <td />
-          <td colSpan={11} className="px-1.5 pb-3">
-            <LineStatus props={props} message={message} />
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
-
 export function LineCard(props: Props) {
   const { t } = useI18n();
-  const { fields, charge, message } = useLineParts(props);
-  const label = (text: string, node: ReactNode, wide = false) => (
-    <label className={`block space-y-1 ${wide ? 'col-span-2' : ''}`}>
-      <span className="text-xs font-medium text-ink-500">{text}</span>
+  const { fields, charge, message, rateNeeded } = useLineParts(props);
+  const field = (text: string, node: ReactNode, span: string) => (
+    <label className={`block min-w-0 space-y-1.5 ${span}`}>
+      <span className="block text-xs font-medium text-ink-600">{text}</span>
       {node}
     </label>
   );
   return (
-    <li className="space-y-3 rounded-xl border border-ink-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+    <li className="rounded-xl border border-ink-200 bg-white shadow-sm transition-shadow focus-within:border-brand-300 focus-within:shadow-md">
+      <div className="flex items-center justify-between gap-2 border-b border-ink-100 px-4 py-2.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="text-sm font-semibold text-ink-900">{t('expenses.lineNo', { n: props.index + 1 })}</span>
           {charge}
         </div>
         <LineButtons {...props} />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        {label(t('payments.field.date'), fields.date)}
-        {label(t('payments.field.amount'), fields.amount)}
-        {label(t('payments.field.project'), fields.project, true)}
-        {label(t('expenses.field.account'), fields.account, true)}
-        {label(t('expenses.field.category'), fields.category)}
-        {props.ctx.accountById.get(props.line.account_id)?.currency !== props.ctx.base && props.line.account_id ? label(t('payments.field.rate'), fields.rate) : <div />}
-        <div className="col-span-2 space-y-1">
-          <span className="text-xs font-medium text-ink-500">{t('expenses.field.item')}</span>
+      <div className="grid grid-cols-1 gap-x-4 gap-y-3 p-4 sm:grid-cols-2 lg:grid-cols-12">
+        {field(t('payments.field.date'), fields.date, 'lg:col-span-3')}
+        {field(t('payments.field.project'), fields.project, 'lg:col-span-5')}
+        {field(t('expenses.field.account'), fields.account, 'sm:col-span-2 lg:col-span-4')}
+
+        {field(t('expenses.field.category'), fields.category, 'lg:col-span-3')}
+        <div className="min-w-0 space-y-1.5 sm:order-none sm:col-span-2 lg:col-span-6">
+          <span className="block text-xs font-medium text-ink-600">{t('expenses.field.item')}</span>
           {fields.item}
         </div>
-        {label(t('expenses.field.description'), fields.description, true)}
-        {label(t('expenses.field.receipt'), fields.receipt, true)}
-        <div className="col-span-2">{fields.return}</div>
+        {field(t('payments.field.amount'), fields.amount, 'lg:col-span-3')}
+
+        {field(t('expenses.field.description'), fields.description, `sm:col-span-2 ${rateNeeded ? 'lg:col-span-4' : 'lg:col-span-5'}`)}
+        <div className="min-w-0 space-y-1.5 lg:col-span-2">
+          <span className="hidden text-xs font-medium text-ink-600 lg:block">&nbsp;</span>
+          <div className="flex min-h-[2.5rem] items-center">{fields.return}</div>
+        </div>
+        {rateNeeded && field(t('payments.field.rate'), fields.rate, 'lg:col-span-2')}
+        {field(t('expenses.field.receipt'), fields.receipt, `${rateNeeded ? 'lg:col-span-4' : 'sm:col-span-2 lg:col-span-5'}`)}
       </div>
-      <LineStatus props={props} message={message} />
+      {(message || props.check || props.checking) && (
+        <div className="border-t border-ink-100 px-4 py-2.5">
+          <LineStatus props={props} message={message} />
+        </div>
+      )}
     </li>
   );
 }

@@ -11,6 +11,8 @@ export const ar: Record<TranslationKey, string> = {
   'common.cancel': 'إلغاء',
   'common.back': 'رجوع',
   'common.retry': 'حاول مرة أخرى',
+  'common.reload': 'إعادة التحميل',
+  'common.screenCrashed': 'حدث خطأ في هذه الشاشة. يرجى إعادة تحميل الصفحة.',
   'common.loading': 'جارٍ التحميل…',
   'common.edit': 'تعديل',
   'common.view': 'عرض',

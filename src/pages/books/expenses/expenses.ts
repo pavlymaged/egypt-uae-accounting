@@ -55,7 +55,7 @@ export interface CostCentre {
 export interface ItemCode {
   code: number;
   name_en: string;
-  name_ar: string;
+  name_ar: string | null;
   scope: 'site' | 'office';
 }
 
