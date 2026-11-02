@@ -1,4 +1,4 @@
-import { BadgePercent, Building2, ShoppingCart, CalendarCheck, FolderKanban, Landmark, LifeBuoy, Receipt, UserRound, Users, UsersRound } from 'lucide-react';
+import { BadgePercent, Building2, ClipboardCheck, HardHat, ShoppingCart, CalendarCheck, FolderKanban, Landmark, LifeBuoy, Receipt, UserRound, Users, UsersRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { TranslationKey } from '../../i18n/en';
@@ -6,9 +6,9 @@ import { useI18n } from '../../i18n/I18nProvider';
 import type { Company } from '../../types';
 import type { BookSection } from '../books/BookPanel';
 
-export type CompanyTab = 'details' | 'users' | 'staff' | 'support' | 'projects' | 'clients' | 'cash' | 'payments' | 'expenses' | 'fees' | 'months';
+export type CompanyTab = 'details' | 'users' | 'staff' | 'support' | 'projects' | 'clients' | 'cash' | 'payments' | 'expenses' | 'claims' | 'engineers' | 'fees' | 'months';
 
-export const BOOK_TABS: CompanyTab[] = ['payments', 'expenses', 'fees', 'projects', 'clients', 'cash', 'months'];
+export const BOOK_TABS: CompanyTab[] = ['payments', 'expenses', 'claims', 'engineers', 'fees', 'projects', 'clients', 'cash', 'months'];
 
 export function adminCompanyTabs(company: Pick<Company, 'service_model'> | null, booksVisible: boolean): CompanyTab[] {
   if (!company) return ['details'];
@@ -40,6 +40,8 @@ const META: Record<CompanyTab, { label: TranslationKey; icon: ReactNode }> = {
   cash: { label: 'companyTabs.cash', icon: <Landmark className="h-4 w-4" /> },
   payments: { label: 'companyTabs.payments', icon: <Receipt className="h-4 w-4" /> },
   expenses: { label: 'companyTabs.expenses', icon: <ShoppingCart className="h-4 w-4" /> },
+  claims: { label: 'companyTabs.claims', icon: <ClipboardCheck className="h-4 w-4" /> },
+  engineers: { label: 'companyTabs.engineers', icon: <HardHat className="h-4 w-4" /> },
   fees: { label: 'companyTabs.fees', icon: <BadgePercent className="h-4 w-4" /> },
   months: { label: 'companyTabs.months', icon: <CalendarCheck className="h-4 w-4" /> },
 };

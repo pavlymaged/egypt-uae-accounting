@@ -1,4 +1,4 @@
-import { BadgePercent, BookOpen, Briefcase, Building2, CalendarCheck, FolderKanban, History, Home, Landmark, LayoutDashboard, LifeBuoy, LogOut, Menu, Receipt, Repeat, ScrollText, ShoppingCart, UserCog, UserRound, Users, X } from 'lucide-react';
+import { BadgePercent, BookOpen, Briefcase, Building2, CalendarCheck, ClipboardCheck, FilePlus2, FolderKanban, HardHat, History, Home, Landmark, LayoutDashboard, LifeBuoy, ListChecks, LogOut, Menu, Receipt, Repeat, ScrollText, ShoppingCart, UserCog, UserRound, Users, Wallet, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/SessionProvider';
@@ -36,9 +36,20 @@ function useNavItems(): NavItem[] {
     ];
   }
   const home: NavItem = { to: '/', label: 'nav.home', icon: <Home className="h-5 w-5" /> };
+  if (activeCompany?.role === 'site_engineer') {
+    return [
+      { to: '/my-claims', label: 'nav.myClaims', icon: <ListChecks className="h-5 w-5" /> },
+      { to: '/new-claim', label: 'nav.newClaim', icon: <FilePlus2 className="h-5 w-5" /> },
+      { to: '/my-custody', label: 'nav.myCustody', icon: <Wallet className="h-5 w-5" /> },
+    ];
+  }
+  const owner = activeCompany?.role === 'owner';
+  const reviewer = owner || (activeCompany?.role === 'bookkeeper' && activeCompany.can_review_claims === true);
   const books: NavItem[] = [
     { to: '/payments', label: 'nav.payments', icon: <Receipt className="h-5 w-5" /> },
     { to: '/expenses', label: 'nav.expenses', icon: <ShoppingCart className="h-5 w-5" /> },
+    ...(reviewer ? [{ to: '/site-claims', label: 'nav.siteClaims' as const, icon: <ClipboardCheck className="h-5 w-5" /> }] : []),
+    ...(owner ? [{ to: '/engineers', label: 'nav.engineers' as const, icon: <HardHat className="h-5 w-5" /> }] : []),
     { to: '/fee-charges', label: 'nav.feeCharges', icon: <BadgePercent className="h-5 w-5" /> },
     { to: '/projects', label: 'nav.projects', icon: <FolderKanban className="h-5 w-5" /> },
     { to: '/clients', label: 'nav.clients', icon: <UserRound className="h-5 w-5" /> },

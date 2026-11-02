@@ -11,10 +11,11 @@ interface Props {
   lines: JournalLine[];
   cashName: Map<string, string>;
   itemName?: Map<string, string>;
+  custodyName?: Map<string, string>;
   baseCurrency: Currency;
 }
 
-export function EntryJournal({ lines, cashName, itemName, baseCurrency }: Props) {
+export function EntryJournal({ lines, cashName, itemName, custodyName, baseCurrency }: Props) {
   const { t } = useI18n();
   const groups = new Map<string, JournalLine[]>();
   for (const l of lines) groups.set(l.journal_id, [...(groups.get(l.journal_id) ?? []), l]);
@@ -33,7 +34,7 @@ export function EntryJournal({ lines, cashName, itemName, baseCurrency }: Props)
       ) : (
         <div className="divide-y divide-ink-200">
           {journals.map((group) => (
-            <JournalTable key={group[0].journal_id} lines={group} cashName={cashName} itemName={itemName} baseCurrency={baseCurrency} />
+            <JournalTable key={group[0].journal_id} lines={group} cashName={cashName} itemName={itemName} custodyName={custodyName} baseCurrency={baseCurrency} />
           ))}
         </div>
       )}
@@ -41,7 +42,7 @@ export function EntryJournal({ lines, cashName, itemName, baseCurrency }: Props)
   );
 }
 
-function JournalTable({ lines, cashName, itemName, baseCurrency }: Props) {
+function JournalTable({ lines, cashName, itemName, custodyName, baseCurrency }: Props) {
   const { t, lang } = useI18n();
   const first = lines[0];
   const debit = sumText(lines.filter((l) => l.side === 'debit').map((l) => l.base_amount));
@@ -50,6 +51,8 @@ function JournalTable({ lines, cashName, itemName, baseCurrency }: Props) {
   const accountLabel = (key: string) => {
     const [kind, ...rest] = key.split(':');
     const code = rest.join(':');
+    const engineer = kind === 'CASH' ? custodyName?.get(code) : undefined;
+    if (engineer) return t('claims.journal.custody', { name: engineer });
     if (kind === 'CASH') return t('payments.journal.cash', { name: cashName.get(code) ?? code });
     if (kind === 'FUND') return t('payments.journal.fund', { code });
     if (key === 'REV:MGMT_FEE') return t('payments.journal.feeRevenue');

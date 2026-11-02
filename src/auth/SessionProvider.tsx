@@ -68,7 +68,7 @@ async function resolveIdentity(userId: string): Promise<Identity | 'disabled' | 
 
   const memberRes = await supabase
     .from('company_users')
-    .select('company_id, role, full_name, company:companies(id, code, name, status)')
+    .select('company_id, role, full_name, can_review_claims, company:companies(id, code, name, status)')
     .eq('user_id', userId)
     .eq('is_active', true);
   if (memberRes.error) return { kind: 'error' };

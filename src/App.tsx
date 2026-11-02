@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { PublicOnly, RequireApp, RequireCompanyChoice, RequirePendingMfa } from './auth/guards';
 import { useSession, useStaff } from './auth/SessionProvider';
 import { AppShell } from './layout/AppShell';
@@ -15,6 +15,9 @@ import { OwnerUsersPage } from './pages/companies/OwnerUsersPage';
 import { AuditPage } from './pages/audit/AuditPage';
 import { AssignedCompanyBooksPage } from './pages/books/AssignedCompanyBooksPage';
 import { CompanyBooksPage } from './pages/books/CompanyBooksPage';
+import { ClaimFormPage } from './pages/claims/engineer/ClaimFormPage';
+import { MyClaimsPage } from './pages/claims/engineer/MyClaimsPage';
+import { MyCustodyPage } from './pages/claims/engineer/MyCustodyPage';
 import { SupportSessionsPage } from './pages/support/SupportSessionsPage';
 import { CompanyHome, StaffDashboard } from './pages/HomePages';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -36,7 +39,10 @@ function AnyStaffGate({ children }: { children: ReactNode }) {
 
 function HomeRoute() {
   const staff = useStaff();
-  return staff ? <StaffDashboard staff={staff} /> : <CompanyHome />;
+  const { activeCompany } = useSession();
+  if (staff) return <StaffDashboard staff={staff} />;
+  if (activeCompany?.role === 'site_engineer') return <Navigate to="/my-claims" replace />;
+  return <CompanyHome />;
 }
 
 function useEmail(): string {
@@ -102,6 +108,12 @@ function AppRoutes() {
             <Route path="cash-accounts" element={<CompanyBooksPage key="cash" section="cash" />} />
             <Route path="payments" element={<CompanyBooksPage key="payments" section="payments" />} />
             <Route path="expenses" element={<CompanyBooksPage key="expenses" section="expenses" />} />
+            <Route path="site-claims" element={<CompanyBooksPage key="claims" section="claims" />} />
+            <Route path="engineers" element={<CompanyBooksPage key="engineers" section="engineers" />} />
+            <Route path="my-claims" element={<MyClaimsPage />} />
+            <Route path="my-claims/:id/edit" element={<ClaimFormPage />} />
+            <Route path="new-claim" element={<ClaimFormPage />} />
+            <Route path="my-custody" element={<MyCustodyPage />} />
             <Route path="fee-charges" element={<CompanyBooksPage key="fees" section="fees" />} />
             <Route path="months" element={<CompanyBooksPage key="months" section="months" />} />
             <Route path="*" element={<NotFoundPage />} />

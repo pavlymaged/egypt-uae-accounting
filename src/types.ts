@@ -51,6 +51,7 @@ export interface CompanyMembership {
   company_id: string;
   role: CompanyRole;
   full_name: string;
+  can_review_claims: boolean;
   company: Pick<Company, 'id' | 'code' | 'name' | 'status'>;
 }
 

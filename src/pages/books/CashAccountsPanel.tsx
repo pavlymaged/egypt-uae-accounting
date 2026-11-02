@@ -58,12 +58,15 @@ export function CashAccountsPanel({ access }: { access: BooksAccess }) {
   }
   if (!accounts) return <Spinner label={t('common.loading')} />;
 
-  const balanceOf = (a: CashAccount) => `${formatNumber(balances.get(balanceKey(`CASH:${a.code}`, a.currency)) ?? '0', a.currency)} ${a.currency}`;
+  const rawBalance = (a: CashAccount) => String(balances.get(balanceKey(`CASH:${a.code}`, a.currency)) ?? '0').trim();
+  const balanceOf = (a: CashAccount) => `${formatNumber(rawBalance(a), a.currency)} ${a.currency}`;
+  const owesNote = (a: CashAccount) => a.kind === 'custody' && rawBalance(a).startsWith('-') && <p className="text-xs font-normal text-emerald-700">{t('cash.custodyOwes')}</p>;
   const canEdit = (a: CashAccount) => access.canManageSetup && a.kind === 'extra' && !a.is_system;
   const kindLabel = (a: CashAccount) => (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       <span className="text-ink-700">{t(`cash.kind.${a.kind}`)}</span>
       {a.is_system && <Badge tone="sky">{t('cash.automatic')}</Badge>}
+      {a.kind === 'custody' && <Badge tone="gold">{t('cash.custodyBadge')}</Badge>}
     </span>
   );
 
@@ -102,7 +105,7 @@ export function CashAccountsPanel({ access }: { access: BooksAccess }) {
                       <td className="px-4 py-3">{kindLabel(a)}</td>
                       <td className="px-4 py-3 text-ink-700">{a.currency}</td>
                       <td className="px-4 py-3"><ActiveBadge active={a.is_active} /></td>
-                      <td className="whitespace-nowrap px-4 py-3 text-end font-medium tabular-nums text-ink-900"><span dir="ltr">{balanceOf(a)}</span></td>
+                      <td className="whitespace-nowrap px-4 py-3 text-end font-medium tabular-nums text-ink-900"><span dir="ltr">{balanceOf(a)}</span>{owesNote(a)}</td>
                       {access.canManageSetup && (
                         <td className="px-4 py-3 text-end">
                           {canEdit(a) && <Button variant="ghost" icon={<Pencil className="h-4 w-4" />} onClick={() => setDialog({ account: a })}>{t('common.edit')}</Button>}
@@ -123,6 +126,7 @@ export function CashAccountsPanel({ access }: { access: BooksAccess }) {
                     </div>
                     <div className="text-sm">{kindLabel(a)}</div>
                     <p className="text-sm font-medium tabular-nums text-ink-900"><span dir="ltr">{balanceOf(a)}</span></p>
+                    {owesNote(a)}
                   </div>
                   {canEdit(a) && <Button variant="ghost" aria-label={t('common.edit')} icon={<Pencil className="h-4 w-4" />} onClick={() => setDialog({ account: a })} />}
                 </li>

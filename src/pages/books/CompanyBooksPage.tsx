@@ -16,14 +16,22 @@ const TITLES: Record<BookSection, { title: TranslationKey; subtitle: Translation
   cash: { title: 'nav.cashAccounts', subtitle: 'cash.subtitle' },
   payments: { title: 'nav.payments', subtitle: 'payments.subtitle' },
   expenses: { title: 'nav.expenses', subtitle: 'expenses.subtitle' },
+  claims: { title: 'nav.siteClaims', subtitle: 'claims.subtitle' },
+  engineers: { title: 'nav.engineers', subtitle: 'engineers.subtitle' },
   fees: { title: 'nav.feeCharges', subtitle: 'feeCharges.subtitle' },
   months: { title: 'nav.months', subtitle: 'months.subtitle' },
 };
 
+function allowedMember(role: string | undefined, reviewer: boolean, section: BookSection): boolean {
+  if (section === 'engineers') return role === 'owner';
+  if (section === 'claims') return role === 'owner' || (role === 'bookkeeper' && reviewer);
+  return role === 'owner' || role === 'bookkeeper';
+}
+
 export function CompanyBooksPage({ section }: { section: BookSection }) {
   const { t } = useI18n();
   const { identity, activeCompany, session } = useSession();
-  const membership = identity?.kind === 'company' && activeCompany && (activeCompany.role === 'owner' || activeCompany.role === 'bookkeeper') ? activeCompany : null;
+  const membership = identity?.kind === 'company' && activeCompany && allowedMember(activeCompany.role, activeCompany.can_review_claims === true, section) ? activeCompany : null;
   const userId = session?.user.id;
   const [access, setAccess] = useState<BooksAccess | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'failed' | 'notFound'>('loading');

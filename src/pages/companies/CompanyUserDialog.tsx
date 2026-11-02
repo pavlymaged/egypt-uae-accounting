@@ -43,6 +43,7 @@ interface Props {
   serviceModel: ServiceModel;
   canChooseOwner: boolean;
   editing: CompanyUser | null;
+  presetRole?: CompanyRole;
   onClose: () => void;
   onInvited: (email: string) => void;
   onCreated: (credentials: SharedCredentials) => void;
@@ -51,7 +52,7 @@ interface Props {
 
 type Errors = Partial<Record<'full_name' | 'email' | 'role', string>>;
 
-export function CompanyUserDialog({ open, companyId, serviceModel, canChooseOwner, editing, onClose, onInvited, onCreated, onSaved }: Props) {
+export function CompanyUserDialog({ open, companyId, serviceModel, canChooseOwner, editing, presetRole, onClose, onInvited, onCreated, onSaved }: Props) {
   const { t } = useI18n();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -81,13 +82,13 @@ export function CompanyUserDialog({ open, companyId, serviceModel, canChooseOwne
     } else {
       setFullName('');
       setEmail('');
-      setRole('');
+      setRole(presetRole ?? '');
       setActive(true);
       setSwitches(PRESETS.viewer);
       setPreset('viewer');
       setMethod('temporary_password');
     }
-  }, [open, editing, serviceModel]);
+  }, [open, editing, serviceModel, presetRole]);
 
   const roles = COMPANY_ROLES.filter((r) => r !== 'owner' || canChooseOwner);
   const showSwitches = role !== '' && role !== 'site_engineer';
