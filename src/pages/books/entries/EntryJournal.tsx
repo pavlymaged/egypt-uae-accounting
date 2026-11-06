@@ -56,6 +56,7 @@ function JournalTable({ lines, cashName, itemName, custodyName, baseCurrency }: 
     if (kind === 'CASH') return t('payments.journal.cash', { name: cashName.get(code) ?? code });
     if (kind === 'FUND') return t('payments.journal.fund', { code });
     if (key === 'REV:MGMT_FEE') return t('payments.journal.feeRevenue');
+    if (key === 'REV:FX') return t('transfers.journal.fx');
     if (key.startsWith('EXP:OFFICE:')) {
       const item = key.slice('EXP:OFFICE:'.length);
       const name = itemName?.get(item);

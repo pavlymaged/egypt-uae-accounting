@@ -16,6 +16,7 @@ const TITLES: Record<BookSection, { title: TranslationKey; subtitle: Translation
   cash: { title: 'nav.cashAccounts', subtitle: 'cash.subtitle' },
   payments: { title: 'nav.payments', subtitle: 'payments.subtitle' },
   expenses: { title: 'nav.expenses', subtitle: 'expenses.subtitle' },
+  transfers: { title: 'nav.transfers', subtitle: 'transfers.subtitle' },
   claims: { title: 'nav.siteClaims', subtitle: 'claims.subtitle' },
   engineers: { title: 'nav.engineers', subtitle: 'engineers.subtitle' },
   fees: { title: 'nav.feeCharges', subtitle: 'feeCharges.subtitle' },

@@ -1,42 +1,38 @@
-import { Landmark, Pencil, Plus } from 'lucide-react';
+import { ArrowLeftRight, Landmark, Pencil, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Alert, Badge, Card, EmptyState, Spinner } from '../../components/ui/Feedback';
 import { useI18n } from '../../i18n/I18nProvider';
+import { todayIn } from '../../lib/dates';
 import { formatNumber } from '../../lib/money';
 import { supabase } from '../../lib/supabase';
 import { ActiveBadge } from '../staff/StaffListPage';
-import { CASH_COLUMNS, type BooksAccess, type CashAccount } from './books';
+import { type BooksAccess, type CashAccount } from './books';
 import { CashAccountDialog } from './CashAccountDialog';
-
-interface BalanceRow {
-  account_key: string;
-  currency: string;
-  net_amount: string | null;
-}
-
-const balanceKey = (accountKey: string, currency: string) => `${accountKey}|${currency}`;
+import { TransferForm } from './transfers/TransferForm';
+import { asCashAccount, BALANCE_COLUMNS, type BalanceAccount } from './transfers/transfers';
 
 export function CashAccountsPanel({ access }: { access: BooksAccess }) {
   const { t } = useI18n();
-  const [accounts, setAccounts] = useState<CashAccount[] | null>(null);
-  const [balances, setBalances] = useState<Map<string, string>>(new Map());
+  const [rows, setRows] = useState<BalanceAccount[] | null>(null);
+  const [today, setToday] = useState('');
+  const [transferOpen, setTransferOpen] = useState(false);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [dialog, setDialog] = useState<{ account: CashAccount | null } | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setFailed(false);
     Promise.all([
-      supabase.from('cash_accounts').select(CASH_COLUMNS).eq('company_id', access.companyId).order('is_system', { ascending: false }).order('name'),
-      supabase.from('ledger_balances').select('account_key, currency, net_amount:net_amount::text').eq('company_id', access.companyId).like('account_key', 'CASH:%'),
-    ]).then(([list, ledger]) => {
+      supabase.from('cash_account_balances').select(BALANCE_COLUMNS).eq('company_id', access.companyId).order('is_system', { ascending: false }).order('name'),
+      supabase.from('companies').select('time_zone').eq('id', access.companyId).maybeSingle(),
+    ]).then(([list, company]) => {
       if (cancelled) return;
-      if (list.error || ledger.error || !Array.isArray(list.data) || !Array.isArray(ledger.data)) return setFailed(true);
-      setBalances(new Map((ledger.data as unknown as BalanceRow[]).map((b) => [balanceKey(b.account_key, b.currency), b.net_amount ?? '0'])));
-      setAccounts(list.data as CashAccount[]);
+      if (list.error || company.error || !Array.isArray(list.data)) return setFailed(true);
+      setRows(list.data as unknown as BalanceAccount[]);
+      setToday(todayIn(company.data?.time_zone ?? null));
     });
     return () => {
       cancelled = true;
@@ -44,7 +40,7 @@ export function CashAccountsPanel({ access }: { access: BooksAccess }) {
   }, [access.companyId, attempt]);
 
   function onSaved() {
-    setNotice(dialog?.account ? t('cash.saved') : t('cash.added'));
+    setNotice({ tone: 'success', text: dialog?.account ? t('cash.saved') : t('cash.added') });
     setDialog(null);
     setAttempt((a) => a + 1);
   }
@@ -56,9 +52,11 @@ export function CashAccountsPanel({ access }: { access: BooksAccess }) {
       </Alert>
     );
   }
-  if (!accounts) return <Spinner label={t('common.loading')} />;
+  if (!rows) return <Spinner label={t('common.loading')} />;
 
-  const rawBalance = (a: CashAccount) => String(balances.get(balanceKey(`CASH:${a.code}`, a.currency)) ?? '0').trim();
+  const accounts = rows.map(asCashAccount);
+  const balances = new Map(rows.map((r) => [r.account_id, r.balance]));
+  const rawBalance = (a: CashAccount) => String(balances.get(a.id) ?? '0').trim();
   const balanceOf = (a: CashAccount) => `${formatNumber(rawBalance(a), a.currency)} ${a.currency}`;
   const owesNote = (a: CashAccount) => a.kind === 'custody' && rawBalance(a).startsWith('-') && <p className="text-xs font-normal text-emerald-700">{t('cash.custodyOwes')}</p>;
   const canEdit = (a: CashAccount) => access.canManageSetup && a.kind === 'extra' && !a.is_system;
@@ -74,11 +72,16 @@ export function CashAccountsPanel({ access }: { access: BooksAccess }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-ink-600">{t('cash.intro')}</p>
-        {access.canManageSetup && (
-          <Button icon={<Plus className="h-4 w-4" />} onClick={() => setDialog({ account: null })}>{t('cash.add')}</Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {access.canRecord && (
+            <Button variant="secondary" icon={<ArrowLeftRight className="h-4 w-4" />} onClick={() => setTransferOpen(true)}>{t('transfers.add')}</Button>
+          )}
+          {access.canManageSetup && (
+            <Button icon={<Plus className="h-4 w-4" />} onClick={() => setDialog({ account: null })}>{t('cash.add')}</Button>
+          )}
+        </div>
       </div>
-      {notice && <Alert tone="success">{notice}</Alert>}
+      {notice && <Alert tone={notice.tone}>{notice.text}</Alert>}
       <Card>
         {accounts.length === 0 ? (
           <EmptyState icon={<Landmark className="h-6 w-6" />} title={t('cash.empty')} />
@@ -142,6 +145,20 @@ export function CashAccountsPanel({ access }: { access: BooksAccess }) {
         account={dialog?.account ?? null}
         onClose={() => setDialog(null)}
         onSaved={onSaved}
+      />
+      <TransferForm
+        open={transferOpen}
+        access={access}
+        transfer={null}
+        accounts={rows}
+        today={today}
+        onClose={() => setTransferOpen(false)}
+        onChanged={() => setAttempt((a) => a + 1)}
+        onDone={(text) => {
+          setNotice({ tone: 'success', text });
+          setTransferOpen(false);
+          setAttempt((a) => a + 1);
+        }}
       />
     </div>
   );

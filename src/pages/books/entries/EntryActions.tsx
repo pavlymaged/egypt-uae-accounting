@@ -24,7 +24,7 @@ export function EntryStatusBadge({ status }: { status: EntryStatus }) {
   return <Badge tone={STATUS_TONE[status]}>{t(STATUS_LABEL[status])}</Badge>;
 }
 
-export type EntryKind = 'payment' | 'feeCharge' | 'expense';
+export type EntryKind = 'payment' | 'feeCharge' | 'expense' | 'transfer';
 
 const TEXT: Record<EntryKind, Record<'submitted' | 'posted' | 'rejected' | 'reversed' | 'rejectTitle' | 'reverseTitle' | 'discardTitle' | 'discardBody', TranslationKey>> = {
   payment: {
@@ -56,6 +56,16 @@ const TEXT: Record<EntryKind, Record<'submitted' | 'posted' | 'rejected' | 'reve
     reverseTitle: 'expenses.reverseTitle',
     discardTitle: 'expenses.discardTitle',
     discardBody: 'expenses.discardBody',
+  },
+  transfer: {
+    submitted: 'transfers.done.submitted',
+    posted: 'transfers.done.posted',
+    rejected: 'transfers.done.rejected',
+    reversed: 'transfers.done.reversed',
+    rejectTitle: 'transfers.rejectTitle',
+    reverseTitle: 'transfers.reverseTitle',
+    discardTitle: 'transfers.discardTitle',
+    discardBody: 'transfers.discardBody',
   },
 };
 

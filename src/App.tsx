@@ -108,6 +108,7 @@ function AppRoutes() {
             <Route path="cash-accounts" element={<CompanyBooksPage key="cash" section="cash" />} />
             <Route path="payments" element={<CompanyBooksPage key="payments" section="payments" />} />
             <Route path="expenses" element={<CompanyBooksPage key="expenses" section="expenses" />} />
+            <Route path="transfers" element={<CompanyBooksPage key="transfers" section="transfers" />} />
             <Route path="site-claims" element={<CompanyBooksPage key="claims" section="claims" />} />
             <Route path="engineers" element={<CompanyBooksPage key="engineers" section="engineers" />} />
             <Route path="my-claims" element={<MyClaimsPage />} />

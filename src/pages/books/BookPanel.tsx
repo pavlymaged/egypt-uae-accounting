@@ -8,8 +8,9 @@ import { FeeChargesPanel } from './fees/FeeChargesPanel';
 import { MonthsPanel } from './MonthsPanel';
 import { PaymentsPanel } from './payments/PaymentsPanel';
 import { ProjectsPanel } from './ProjectsPanel';
+import { TransfersPanel } from './transfers/TransfersPanel';
 
-export type BookSection = 'projects' | 'clients' | 'cash' | 'payments' | 'expenses' | 'claims' | 'engineers' | 'fees' | 'months';
+export type BookSection = 'projects' | 'clients' | 'cash' | 'payments' | 'expenses' | 'transfers' | 'claims' | 'engineers' | 'fees' | 'months';
 
 /** `routed` is the member menu (one page per section); otherwise the sections are tabs on a company page. */
 export function BookPanel({ section, access, routed = false }: { section: BookSection; access: BooksAccess; routed?: boolean }) {
@@ -18,6 +19,7 @@ export function BookPanel({ section, access, routed = false }: { section: BookSe
   if (section === 'clients') return <ClientsPanel access={access} />;
   if (section === 'payments') return <PaymentsPanel access={access} />;
   if (section === 'expenses') return <ExpensesPanel access={access} />;
+  if (section === 'transfers') return <TransfersPanel access={access} />;
   if (section === 'claims') return <SiteClaimsPanel access={access} />;
   if (section === 'engineers') return <EngineersPanel access={access} />;
   if (section === 'fees') return <FeeChargesPanel access={access} />;
