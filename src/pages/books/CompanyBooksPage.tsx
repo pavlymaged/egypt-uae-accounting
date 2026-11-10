@@ -17,6 +17,8 @@ const TITLES: Record<BookSection, { title: TranslationKey; subtitle: Translation
   payments: { title: 'nav.payments', subtitle: 'payments.subtitle' },
   expenses: { title: 'nav.expenses', subtitle: 'expenses.subtitle' },
   transfers: { title: 'nav.transfers', subtitle: 'transfers.subtitle' },
+  vendors: { title: 'nav.vendors', subtitle: 'vendors.subtitle' },
+  quotations: { title: 'nav.quotations', subtitle: 'quotations.subtitle' },
   claims: { title: 'nav.siteClaims', subtitle: 'claims.subtitle' },
   engineers: { title: 'nav.engineers', subtitle: 'engineers.subtitle' },
   fees: { title: 'nav.feeCharges', subtitle: 'feeCharges.subtitle' },
@@ -44,7 +46,7 @@ export function CompanyBooksPage({ section }: { section: BookSection }) {
     setState('loading');
     Promise.all([
       supabase.from('companies').select('id, service_model, status, base_currency').eq('id', membership.company_id).maybeSingle(),
-      supabase.from('company_users').select('can_record, can_post').eq('company_id', membership.company_id).eq('user_id', userId).maybeSingle(),
+      supabase.from('company_users').select('can_record, can_post, can_manage_vendors, can_edit_quotations').eq('company_id', membership.company_id).eq('user_id', userId).maybeSingle(),
     ]).then(([company, me]) => {
       if (cancelled) return;
       if (company.error || me.error) return setState('failed');

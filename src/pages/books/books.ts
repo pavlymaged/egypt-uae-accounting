@@ -9,6 +9,8 @@ export interface BooksAccess {
   canManageClients: boolean;
   canRecord: boolean;
   canPost: boolean;
+  canManageVendors: boolean;
+  canEditQuotations: boolean;
   canCloseMonth: boolean;
   canReopenMonth: boolean;
   currency: Currency;
@@ -96,6 +98,8 @@ export function staffBooksAccess(role: StaffRole, company: CompanyRef, support: 
       canManageClients: edit,
       canRecord: edit,
       canPost: edit,
+      canManageVendors: edit,
+      canEditQuotations: edit,
       canCloseMonth: false,
       canReopenMonth: false,
       currency: company.base_currency,
@@ -110,6 +114,8 @@ export function staffBooksAccess(role: StaffRole, company: CompanyRef, support: 
     canManageClients: record,
     canRecord: record,
     canPost: open && (isPlatformAdmin(role) || role === 'checker'),
+    canManageVendors: record,
+    canEditQuotations: record,
     canCloseMonth: isPlatformAdmin(role),
     canReopenMonth: role === 'super_admin',
     currency: company.base_currency,
@@ -119,6 +125,8 @@ export function staffBooksAccess(role: StaffRole, company: CompanyRef, support: 
 export interface MemberSwitches {
   can_record: boolean;
   can_post: boolean;
+  can_manage_vendors: boolean;
+  can_edit_quotations: boolean;
 }
 
 export function memberBooksAccess(role: CompanyRole, switches: MemberSwitches, company: CompanyRef): BooksAccess {
@@ -134,6 +142,8 @@ export function memberBooksAccess(role: CompanyRole, switches: MemberSwitches, c
     canManageClients: record,
     canRecord: record,
     canPost: owner || (open && role === 'bookkeeper' && switches.can_post === true),
+    canManageVendors: owner || (open && role === 'bookkeeper' && switches.can_manage_vendors === true),
+    canEditQuotations: owner || (open && role === 'bookkeeper' && switches.can_edit_quotations === true),
     canCloseMonth: isOwner,
     canReopenMonth: isOwner,
     currency: company.base_currency,

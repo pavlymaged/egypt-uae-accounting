@@ -2,6 +2,7 @@ import { ChevronDown, Search } from 'lucide-react';
 import { useId, useMemo, useState, type KeyboardEvent } from 'react';
 import { inputClass } from '../../../components/ui/Field';
 import { useI18n } from '../../../i18n/I18nProvider';
+import { foldText as fold } from '../../../lib/search';
 import type { ItemCode } from './expenses';
 
 interface Props {
@@ -13,8 +14,6 @@ interface Props {
 }
 
 const LIMIT = 60;
-
-const fold = (value: unknown) => String(value ?? '').normalize('NFKC').replace(/[\u064B-\u065F\u0670\u0640]/g, '').toLowerCase().trim();
 
 export function ItemCodePicker({ value, items, invalid = false, onChange, 'aria-label': label }: Props) {
   const { t, lang } = useI18n();

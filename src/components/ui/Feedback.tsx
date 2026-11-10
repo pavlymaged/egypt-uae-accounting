@@ -47,7 +47,7 @@ export function EmptyState({ icon, title, children }: { icon: ReactNode; title: 
   );
 }
 
-type BadgeTone = 'neutral' | 'brand' | 'gold' | 'success' | 'warning' | 'danger' | 'sky';
+export type BadgeTone = 'neutral' | 'brand' | 'gold' | 'success' | 'warning' | 'danger' | 'sky';
 
 const badgeTones: Record<BadgeTone, string> = {
   neutral: 'bg-ink-100 text-ink-700 ring-ink-200',

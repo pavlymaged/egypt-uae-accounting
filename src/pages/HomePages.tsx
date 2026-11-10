@@ -1,4 +1,4 @@
-import { Building2, Sparkles, Users, type LucideIcon } from 'lucide-react';
+import { Building2, ChevronRight, FileCheck2, Sparkles, Users, type LucideIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSession } from '../auth/SessionProvider';
@@ -117,6 +117,45 @@ export function CompanyHome() {
           </div>
         </div>
       </Card>
+      {activeCompany.role === 'owner' && <QuotationApprovalsCard companyId={activeCompany.company.id} />}
     </div>
+  );
+}
+
+function QuotationApprovalsCard({ companyId }: { companyId: string }) {
+  const { t } = useI18n();
+  const [count, setCount] = useState<number | null | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from('quotations_list')
+      .select('quotation_id', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .eq('can_decide', true)
+      .then(({ count: n, error }) => {
+        if (!cancelled) setCount(error ? null : (n ?? 0));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
+
+  const waiting = typeof count === 'number' && count > 0;
+  return (
+    <Link to="/quotations?waiting=1" className="group mt-6 block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+      <Card className={`flex items-center gap-4 p-5 transition-all group-hover:-translate-y-0.5 group-hover:shadow-md ${waiting ? 'border-gold-300 bg-gold-50/40' : 'group-hover:border-brand-200'}`}>
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${waiting ? 'bg-gold-100 text-gold-700' : 'bg-brand-50 text-brand-700'}`}>
+          <FileCheck2 className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-ink-900">
+            {count === undefined ? t('home.quotationsWaitingLoading') : count === null ? t('home.quotationsWaitingFailed') : t('home.quotationsWaiting', { n: count })}
+          </p>
+          <p className="mt-0.5 text-sm text-ink-500">{t('home.quotationsWaitingHint')}</p>
+        </div>
+        <ChevronRight className="h-5 w-5 shrink-0 text-ink-300 transition-transform group-hover:translate-x-0.5 rtl:-scale-x-100 rtl:group-hover:-translate-x-0.5" />
+      </Card>
+    </Link>
   );
 }

@@ -1,4 +1,4 @@
-import { ArrowLeftRight, BadgePercent, BookOpen, Briefcase, Building2, CalendarCheck, ClipboardCheck, FilePlus2, FolderKanban, HardHat, History, Home, Landmark, LayoutDashboard, LifeBuoy, ListChecks, LogOut, Menu, Receipt, Repeat, ScrollText, ShoppingCart, UserCog, UserRound, Users, Wallet, X } from 'lucide-react';
+import { ArrowLeftRight, FileText, Store, BadgePercent, BookOpen, Briefcase, Building2, CalendarCheck, ClipboardCheck, FilePlus2, FolderKanban, HardHat, History, Home, Landmark, LayoutDashboard, LifeBuoy, ListChecks, LogOut, Menu, Receipt, Repeat, ScrollText, ShoppingCart, UserCog, UserRound, Users, Wallet, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useSession } from '../auth/SessionProvider';
@@ -48,6 +48,8 @@ function useNavItems(): NavItem[] {
   const books: NavItem[] = [
     { to: '/payments', label: 'nav.payments', icon: <Receipt className="h-5 w-5" /> },
     { to: '/expenses', label: 'nav.expenses', icon: <ShoppingCart className="h-5 w-5" /> },
+    { to: '/vendors', label: 'nav.vendors', icon: <Store className="h-5 w-5" /> },
+    { to: '/quotations', label: 'nav.quotations', icon: <FileText className="h-5 w-5" /> },
     { to: '/transfers', label: 'nav.transfers', icon: <ArrowLeftRight className="h-5 w-5" /> },
     ...(reviewer ? [{ to: '/site-claims', label: 'nav.siteClaims' as const, icon: <ClipboardCheck className="h-5 w-5" /> }] : []),
     ...(owner ? [{ to: '/engineers', label: 'nav.engineers' as const, icon: <HardHat className="h-5 w-5" /> }] : []),
